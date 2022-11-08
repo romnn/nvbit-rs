@@ -53,6 +53,7 @@ fn main() {
         .allowlist_type("CFG_t")
         // avoid difficulties with C++ std::vector for example
         .opaque_type("std::.*") 
+        .blocklist_type("std::.*") 
         // .allowlist_type("ipoint_t")
         // .allowlist_type("nvbit_api_cuda_t")
         // .allowlist_type("nvbit_*")
