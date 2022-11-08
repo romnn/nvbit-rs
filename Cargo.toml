@@ -1,0 +1,17 @@
+[package]
+name = "nvbit-sys"
+version = "0.1.0"
+edition = "2021"
+
+[[example]]
+name = "tracer"
+path = "examples/tracer.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+cxx = "1.0"
+
+[build-dependencies]
+cxx-build = "1.0"
+bindgen    = { version = "0.61", default-features = false, features = ["runtime"] }
+cc = "1.0.75"
