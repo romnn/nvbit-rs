@@ -35,11 +35,6 @@
 
 #define TRACER_VERSION "3"
 
-
-void nvbit_at_init() {
-  printf("nvbit_at_init\n");
-}
-
 // Channel used to communicate from GPU to CPU receiving thread
 #define CHANNEL_SIZE (1l << 20)
 static __managed__ ChannelDev channel_dev;
@@ -86,6 +81,7 @@ uint64_t dynamic_kernel_limit_end = 0; // 0 means no limit
 enum address_format { list_all = 0, base_stride = 1, base_delta = 2 };
 
 void nvbit_at_init() {
+  printf("nvbit_at_init\n");
   setenv("CUDA_MANAGED_FORCE_DEVICE_ALLOC", "1", 1);
   GET_VAR_INT(
       instr_begin_interval, "INSTR_BEGIN", 0,
@@ -131,6 +127,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
 
   // add kernel itself to the related function vector
   related_functions.push_back(func);
+  printf("called nvbit_get_related_functions = %d\n", related_functions.size());
 
   // iterate on function
   for (auto f : related_functions) {

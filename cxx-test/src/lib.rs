@@ -1,74 +1,5 @@
-#![allow(warnings, dead_code)]
-
-#[allow(warnings, dead_code)]
-pub mod bindings {
-    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-}
-
-// unsafe impl cxx::ExternType for bindings::CUfunction {
-//     type Id = cxx::type_id!("CUfunction");
-//     type Kind = cxx::kind::Opaque;
-// }
-
-// pub use bindings::*;
-
-// namespace = "org::blobstore"
-
-unsafe impl cxx::ExternType for bindings::CUfunc_st {
-    type Id = cxx::type_id!("CUfunc_st");
-    type Kind = cxx::kind::Trivial;
-    // type Kind = cxx::kind::Opaque;
-}
-
-unsafe impl cxx::ExternType for bindings::CUctx_st {
-    type Id = cxx::type_id!("CUctx_st");
-    type Kind = cxx::kind::Trivial;
-    // type Kind = cxx::kind::Opaque;
-}
-
-// unsafe impl cxx::ExternType for bindings::CUctx_st {
-//     type Id = cxx::type_id!("CUctx_st");
-//     type Kind = cxx::kind::Trivial;
-//     // type Kind = cxx::kind::Opaque;
-// }
-
-
-unsafe impl Send for ffi::TestCUfunction {}
-unsafe impl Sync for ffi::TestCUfunction {}
-
 #[cxx::bridge]
 mod ffi {
-    // struct BlobMetadata {
-    //     size: usize,
-    //     tags: Vec<String>,
-    // }
-    // type CUfunc_st; //  = super::bindings::CUfunction;
-    // type CUfunction = super::bindings::CUfunc_st;
-
-    #[derive(Clone, Copy, Hash, Eq, PartialEq, PartialOrd)]
-    struct TestCUfunction {
-        // test: usize,
-        // inner: cxx::UniquePtr<CUfunc_st>,
-        inner: *mut CUfunc_st,
-        // inner: *mut super::bindings::CUfunc_st,
-        // inner: *mut CUfunc_st,
-        // inner: *mut super::bindings::CUfunc_st,
-        // vec: Vec<usize>,
-    }
-
-    // is CUfunction sync? is it safe to pass it around?
-    // its opaque so we cannot write to it anyways?
-    // doing so would only mess up real bad
-
-    // #[derive(PartialEq, PartialOrd)]
-    // struct TestCUcontext {
-    //     // test: usize,
-    //     // inner: cxx::UniquePtr<CUfunc_st>,
-    //     // inner: *mut CUctx_st,
-    //     // inner: *mut super::bindings::CUctx_st,
-    //     // vec: Vec<usize>,
-    // }
-
     // Rust types and signatures exposed to C++.
     // we do not want to expose anything to C++
     extern "Rust" {
@@ -79,17 +10,17 @@ mod ffi {
     }
 
     unsafe extern "C++" {
+        include!("cxx-test/inc/nvbit.h");
         // include!("nvbit.h");
         // include!("nvbit/nvbit.cc");
         // include!("nvbit-sys/nvbit/nvbit.h");
-        include!("nvbit-sys/nvbit/nvbit.h");
         // include!("nvbit-sys/nvbit/nvbit.h");
         // include!("nvbit_sys/nvbit/nvbit.cc");
         // include!("nvbit_release/core/nvbit.h");
 
         // type CUfunction = super::bindings::CUfunction;
-        type CUfunc_st = super::bindings::CUfunc_st;
-        type CUctx_st = super::bindings::CUctx_st;
+        // type CUfunc_st = super::bindings::CUfunc_st;
+        // type CUctx_st = super::bindings::CUctx_st;
         // type Instr = super::bindings::Instr;
 
         // typedef enum cudaError_enum { ... } CUresult
@@ -110,20 +41,21 @@ mod ffi {
 
         // long unsigned int (*)(CUctx_st*, CUfunc_st*)’} to ‘std::size_t (*)(const CUctx_st&, const CUfunc_st&)’ {aka ‘long unsigned int (*)(const CUctx_st&, const CUfunc_st&)
         // unsafe fn rust_new_nvbit_get_related_functions(
-        unsafe fn rust_new_nvbit_get_related_functions(
-            // ctx: &CUctx_st,
-            ctx: *mut CUctx_st,
-            // ctx: TestCUcontext,
-            // func: &CUfunc_st,
-            func: *mut CUfunc_st,
-            // func: TestCUfunction,
-            // ) -> cxx::UniquePtr<cxx::CxxVector<CUfunction>>;
-        ) -> Vec<TestCUfunction>;
+        // unsafe fn rust_new_nvbit_get_related_functions(
+        //     // ctx: &CUctx_st,
+        //     ctx: *mut CUctx_st,
+        //     // ctx: TestCUcontext,
+        //     // func: &CUfunc_st,
+        //     func: *mut CUfunc_st,
+        //     // func: TestCUfunction,
+        //     // ) -> cxx::UniquePtr<cxx::CxxVector<CUfunction>>;
+        // ) -> Vec<TestCUfunction>;
 
         // returns non mutable vec of instructions
         // const rust::Vec<uint8_t> &c_return_ref_rust_vec(const C &c);
-        fn rust_nvbit_get_instrs(
-            // ctx: &CUctx_st,
+        // fn unique_ptr_works() -> UniquePtr<u8>;
+
+        fn rust_nvbit_get_instrs(// ctx: &CUctx_st,
             // ctx: CUcontext,
             // ctx: *mut CUctx_st,
             // ctx: TestCUcontext,
@@ -133,8 +65,8 @@ mod ffi {
             // func: TestCUfunction,
             // ) -> cxx::UniquePtr<cxx::CxxVector<CUfunction>>;
         // ) -> cxx::UniquePtr<cxx::CxxVector<usize>>;
-        ) -> &cxx::String; // &cxx::CxxVector<u8>;
-        // ) -> cxx::UniquePtr<cxx::CxxVector<u8>>;
+        // // ) -> &cxx::String; // &cxx::CxxVector<u8>;
+        ) -> UniquePtr<CxxVector<u8>>;
         // ) -> &cxx::CxxVector<u8>;
         // ) -> &cxx::CxxVector<*mut Instr>;
         // ) -> &cxx::CxxVector<*mut super::bindings::Instr>;
@@ -174,20 +106,13 @@ mod ffi {
 
 pub use ffi::*;
 
-extern "C" {
-    fn init_nvbit();
-}
-
-pub fn init() {
-    unsafe { init_nvbit() }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn has_nvbit() {
-        unsafe { init_nvbit() }
+    fn it_works() {
+        let result = add(2, 2);
+        assert_eq!(result, 4);
     }
 }
