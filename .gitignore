@@ -7,3 +7,4 @@
 **/tracer_nvbit/**/*.o
 **/tracer_nvbit/**/*.so
 **/tracer_nvbit/traces/
+**/tracer_tool/**/traces/

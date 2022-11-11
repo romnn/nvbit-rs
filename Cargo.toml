@@ -6,6 +6,7 @@ edition = "2021"
 [[example]]
 name = "tracer"
 path = "examples/tracer.rs"
+build = "examples/tracer_build.rs"
 crate-type = ["cdylib"]
 
 [dependencies]

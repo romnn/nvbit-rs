@@ -26,14 +26,22 @@ NVBIT_TOOL=$(current_dir).so
 
 all: $(NVBIT_TOOL)
 
+# -arch=sm_$(ARCH) 
+# -lcudart_static 
+# $(NVCC_PATH) 
 $(NVBIT_TOOL): $(OBJECTS) $(NVBIT_PATH)/libnvbit.a
-	$(NVCC) -arch=sm_$(ARCH) -O3 $(OBJECTS) $(LIBS) $(NVCC_PATH) -lcuda -lcudart_static -shared -o $@
+	$(NVCC) -O3 $(OBJECTS) $(LIBS) -lcuda -shared -o $@
 
+# -Wall
+# -arch=sm_$(ARCH)
 %.o: %.cu common.h
-	$(NVCC) -dc -c -std=c++11 $(INCLUDES) -Xptxas -cloning=no -Xcompiler -Wall -arch=sm_$(ARCH) -O3 -Xcompiler -fPIC $< -o $@
+	$(NVCC) -dc -c -std=c++11 $(INCLUDES) -Xptxas -cloning=no -Xcompiler -w  -O3 -Xcompiler -fPIC $< -o $@
 
+# -Wall 
+# -arch=sm_$(ARCH) 
+# -Xcompiler -w -Xcompiler -fPIC 
 inject_funcs.o: inject_funcs.cu common.h
-	$(NVCC) $(INCLUDES) -maxrregcount=24 -Xptxas -astoolspatch --keep-device-functions -arch=sm_$(ARCH) -Xcompiler -Wall -Xcompiler -fPIC -c $< -o $@
+	$(NVCC) $(INCLUDES) -maxrregcount=24 -Xptxas -astoolspatch --keep-device-functions -c $< -o $@
 
 clean:
 	rm -f *.so *.o

@@ -1,5 +1,10 @@
 ## nvbit-rs
 
+make the examples individual crates with cargo.toml and build.rs
+write the custom tracing kernels per example 
+this way we might finally include the symbol
+
+
 #### TODO - we find that Rust and C++ interop is hard - e.g. `nvbit_get_related_functions` returns `std::vector<CUfunction>`, for which there is no easy binding, even using `&cxx::CxxVector<CUfunction>` does not work because `CUfunction` is a FFI struct (by value).
   - a possible way is to provide a wrapper that copies to a `cxx::Vec<CUfuncton>` i guess (see [this example](https://github.com/dtolnay/cxx/blob/master/book/src/binding/vec.md#example))
   - since we are tracing, and this would need to be performed for each unseen function, this copy overhead is not acceptable
@@ -61,7 +66,15 @@ We will also need to include `nvbit.h`, `nvbit_tool.h`, and tracing injected fun
 Make sure that the C function hooks of nvbit are not mangled in the shared library:
 ```bash
 nm -D ./target/debug/examples/libtracer.so
+nm -D ./target/debug/build/nvbit-sys-08fdef510bde07a0/out/libinstrumentation.a
 ```
+
+Problem: we need the `instrument_inst` function to be present in the binary, just like
+for the example:
+```bash
+nm -D /home/roman/dev/nvbit-sys/tracer_nvbit/tracer_tool/tracer_tool.so | grep instrument
+```
+Currently, its not :(
 
 Make sure that we link statically:
 ```bash

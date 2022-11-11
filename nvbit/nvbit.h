@@ -17,21 +17,32 @@
 /* extern "C" */
 /* size_t rust_nvbit_get_related_functions() { return 42; } */
 
-extern "C" size_t rust_nvbit_get_related_functions();
+/* extern "C" size_t rust_nvbit_get_related_functions(); */
 
 /* std::unique_ptr<std::vector<CUfunction>>
  * rust_new_nvbit_get_related_functions( */
-extern "C" rust::Vec<TestCUfunction> rust_new_nvbit_get_related_functions(
+/* extern "C" */
+/* rust::Vec<TestCUfunction> rust_nvbit_get_related_functions( */
+/* std::unique_ptr<std::vector<uint8_t>> rust_nvbit_get_related_functions( */
+std::unique_ptr<std::vector<CUfunctionShim>> rust_nvbit_get_related_functions(
     /* const CUctx_st &ctx, const CUfunc_st &func */
     CUcontext ctx, CUfunction func
+    /* CUcontextShim ctx, CUfunctionShim func */
     /* TestCUcontext ctx, TestCUfunction func */
 );
 
 /* extern "C" rust::Vec<TestCUfunction> rust_new_nvbit_get_related_functions( */
-/* extern "C" */ 
+/* extern "C" */
 /* const std::vector<uint8_t> &rust_nvbit_get_instrs( */
-extern "C++" std::unique_ptr<std::vector<uint8_t>> rust_nvbit_get_instrs(
+/* extern "C++" */
+/* std::unique_ptr<std::vector<uint8_t>> rust_nvbit_get_instrs( */
+/* const std::vector<uint8_t> &rust_nvbit_get_instrs( */
+/* std::unique_ptr<std::vector<Instr>> rust_nvbit_get_instrs( */
+/* std::unique_ptr<std::vector<Instr>> rust_nvbit_get_instrs( */
+/* std::unique_ptr<std::vector<std::unique_ptr<Instr>>> rust_nvbit_get_instrs( */
+std::unique_ptr<std::vector<InstrShim>> rust_nvbit_get_instrs(
     /* const CUctx_st &ctx, const CUfunc_st &func */
-    /* CUcontext ctx, CUfunction func */
+    CUcontext ctx, CUfunction func
+    /* CUcontextShim ctx, CUfunctionShim func */
     /* TestCUcontext ctx, TestCUfunction func */
 );

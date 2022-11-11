@@ -107,6 +107,9 @@ fn gen_bindings() {
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=src/lib.rs");
+    println!("cargo:rerun-if-changed=nvbit/common.h");
+    println!("cargo:rerun-if-changed=nvbit/inject_funcs.cu");
     println!("cargo:rerun-if-changed=nvbit/nvbit.cu");
     println!("cargo:rerun-if-changed=nvbit/nvbit.h");
     println!("cargo:rerun-if-env-changed=CUDA_LIBRARY_PATH");
@@ -119,12 +122,48 @@ fn main() {
     // create workspaces: nvbit-sys and nvbit-rs
     // add example binary tracer tool with options
 
-    // nvcc -ccbin=g++ -D_FORCE_INLINES -dc -c -std=c++11 -I../nvbit_release/core -Xptxas -cloning=no -Xcompiler -Wall -arch=sm_35 -O3 -Xcompiler -fPIC tracer_tool.cu -o tracer_tool.o
+    // nvcc -ccbin=g++ -D_FORCE_INLINES -dc -c -std=c++11 -I../nvbit_release/core -Xptxas
+    // -cloning=no -Xcompiler -Wall -arch=sm_35 -O3 -Xcompiler -fPIC tracer_tool.cu -o tracer_tool.o
+    cc::Build::new()
+        .include("nvbit_release/core")
+        .include("/usr/lib/x86_64-linux-gnu")
+        .no_default_flags(true)
+        // .define("FORCE_INLINES", "")
+        .flag("-D_FORCE_INLINES")
+        .flag("-maxrregcount=24")
+        .flag("-Xptxas")
+        // .flag("-cloning=no")
+        .flag("-astoolspatch")
+        // Compile patch code for CUDA tools. Implies --keep-device-functions.
+        // May only be used in conjunction with --ptx or --cubin or --fatbin.
+        // Shall not be used in conjunction with -rdc=true or -ewp.
+        // Some PTX ISA features may not be usable in this compilation mode.
+        // In whole program compilation mode,
+        // preserve user defined external linkage __device__ function definitions
+        // in generated PTX.
+        .flag("--keep-device-functions")
+        // .flag("-shared")
+        // Compile each .c, .cc, .cpp, .cxx, and .cu input file into
+        // an object file that contains relocatable device code.
+        // It is equivalent to --relocatable-device-code=true --compile.
+        // .flag("-dc") // MUST BE DISABLED
+        // Compile each .c, .cc, .cpp, .cxx, and .cu input file into an object file.
+        // .flag("-c")
+        .file("nvbit/inject_funcs.cu")
+        .compiler("nvcc")
+        .warnings(false)
+        // .shared_flag(true)
+        .compile("instrumentation");
+    // println!("cargo:rustc-link-lib=static=instrumentation");
+    // println!("cargo:rustc-link-lib=dylib=instrumentation");
+    // println!("cargo:rustc-link-lib=dylib=instrumentation");
+
     cxx_build::bridge("src/lib.rs")
         // .include("nvbit_release/core")
         // include CUDA stuff
         // .include("/usr/lib/x86_64-linux-gnu")
         // "nvbit_release/core")
+        // .file("nvbit/inject_funcs.cu")
         .file("nvbit/nvbit.cu")
         // .file("nvbit/nvbit.cu")
         .compiler("nvcc")

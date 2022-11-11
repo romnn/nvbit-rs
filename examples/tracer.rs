@@ -1,9 +1,14 @@
 #![allow(warnings)]
+#[link(name = "instrument")]
+
 use lazy_static::lazy_static;
 use libc;
+use nvbit_sys::bindings::{CUcontext, CUfunction};
 use nvbit_sys::*;
+use std::collections::{HashMap, HashSet};
 use std::ffi;
-use std::sync::Mutex;
+use std::pin::Pin;
+use std::sync::{Arc, Mutex};
 
 // todo: set up the channel
 // /* Channel used to communicate from GPU to CPU receiving thread */
@@ -41,45 +46,73 @@ use std::sync::Mutex;
 #[no_mangle]
 pub extern "C" fn nvbit_at_init() {
     init();
-    println!("{:?}", rust_nvbit_get_related_functions());
+    // println!("{:?}", rust_nvbit_get_related_functions());
     println!("it works");
 }
 
 // todo: use static vars for all those globals
 /* std::unordered_set<CUfunction> already_instrumented; */
 
-use std::collections::HashSet;
+// todo: make this sync
+#[derive(Hash, Eq, PartialEq, Clone)]
+struct CUfunctionKey {
+    // inner: Arc<CUfunction>,
+    // inner: Mutex<CUfunction>,
+    // inner: *const bindings::CUfunc_st,
+    // inner: Arc<*const bindings::CUfunc_st>,
+    // inner: std::ptr::NonNull<*mut bindings::CUfunc_st>,
+    inner: std::ptr::NonNull<bindings::CUfunc_st>,
+}
+
+// todo: make sure this is done in the safe wrapper at some point
+unsafe impl Send for CUfunctionKey {}
 
 lazy_static! {
-    static ref ALREADY_INSTRUMENTED: Mutex<HashSet<TestCUfunction>> = Mutex::new(HashSet::new());
+    // static ref ALREADY_INSTRUMENTED: Mutex<HashSet<TestCUfunction>> = Mutex::new(HashSet::new());
+    static ref ALREADY_INSTRUMENTED: Mutex<HashSet<CUfunctionKey>> = Mutex::new(HashSet::new());
 }
 
 // fn instrument_function_if_needed(ctx: CUcontext , func: CUfunction) {
-fn instrument_function_if_needed(ctx: *mut bindings::CUctx_st, func: *mut bindings::CUfunc_st) {
+// fn instrument_function_if_needed(ctx: *mut bindings::CUctx_st, func: *mut bindings::CUfunc_st) {
+fn instrument_function_if_needed(ctx: CUcontext, func: CUfunction) {
     // let testctx = TestCUcontext { inner: ctx };
     // let testfunc = TestCUfunction { inner: func };
-    let mut related_functions = unsafe { rust_new_nvbit_get_related_functions(ctx, func) };
+    let related_functions = unsafe { rust_nvbit_get_related_functions(ctx, func) };
     // let related_functions = nvbit_get_related_functions(ctx, func);
     // std::vector<CUfunction> related_functions = nvbit_get_related_functions(ctx, func);
     // add kernel itself to the related function vector */
     // let mut already_instrumented = std::collections::HashSet::new();
     // std::unordered_set<CUfunction> already_instrumented;
 
-    related_functions.push(TestCUfunction { inner: func });
+    // todo: perform this in the safe wrapper
+    let mut related_functions: Vec<CUfunctionShim> =
+        related_functions.into_iter().copied().collect();
+
+    related_functions.push(unsafe { CUfunctionShim::wrap(func) });
     println!("number of related functions: {:?}", related_functions.len());
 
-    for f in &related_functions {
+    for f in &mut related_functions {
         // "recording" function was instrumented,
         // if set insertion failed we have already encountered this function
-        let func_name: *const libc::c_char =
-            unsafe { bindings::nvbit_get_func_name(ctx, f.inner, false) };
+        let func_name: *const libc::c_char = unsafe {
+            // bindings::nvbit_get_func_name(ctx.as_mut_ptr(), f.as_mut_ptr(), false)
+            bindings::nvbit_get_func_name(ctx, f.as_mut_ptr(), false)
+        };
 
         let func_name = unsafe { ffi::CStr::from_ptr(func_name).to_string_lossy() };
 
-        let func_addr: u64 = unsafe { bindings::nvbit_get_func_addr(f.inner) };
+        let func_addr: u64 = unsafe {
+            // bindings::nvbit_get_func_addr(f.ptr)
+            bindings::nvbit_get_func_addr(f.as_mut_ptr())
+        };
 
         let mut instrumented_lock = ALREADY_INSTRUMENTED.lock().unwrap();
-        if !instrumented_lock.insert(*f) {
+        let key = unsafe {
+            CUfunctionKey {
+                inner: std::ptr::NonNull::new_unchecked(f.as_mut_ptr()),
+            }
+        };
+        if !instrumented_lock.insert(key) {
             println!(
                 "already instrumented function {} at address {:#X}",
                 func_name, func_addr
@@ -94,48 +127,71 @@ fn instrument_function_if_needed(ctx: *mut bindings::CUctx_st, func: *mut bindin
 
         // const std::vector<Instr *> &instrs = nvbit_get_instrs(ctx, f);
         // const std::vector<Instr *> &instrs = nvbit_get_instrs(ctx, f);
+        let instrs = unsafe { rust_nvbit_get_instrs(ctx, func) };
+        println!("found {} instructions", instrs.len());
+        println!("instructions {:#?} ", instrs);
+
+        let mut count: u32 = 0;
+        for instr in instrs.iter() {
+            // iterate on all the static instructions in the function
+            // if count < instr_begin_interval || count >= instr_end_interval {
+            //     count += 1;
+            //     continue;
+            // }
+
+            // let ptr: &mut Instr = unsafe { &mut *instr.as_mut_ptr() };
+            // let instr: Pin<&mut Instr> = unsafe { Pin::new_unchecked(ptr) };
+
+            unsafe { instr.as_mut_ref().printDecoded() };
+
+            // std::map<std::string, int> opcode_to_id_map;
+            let mut opcode_to_id_map: HashMap<String, usize> = HashMap::new();
+
+            // if opcode_to_id_map.find(instr->getOpcode()) == opcode_to_id_map.end() {
+
+            let opcode: String = {
+                let op = unsafe { instr.as_mut_ref().getOpcode() };
+                unsafe { ffi::CStr::from_ptr(op).to_string_lossy().to_string() }
+            };
+
+            if !opcode_to_id_map.contains_key(&opcode) {
+                let opcode_id = opcode_to_id_map.len();
+                opcode_to_id_map.insert(opcode.clone(), opcode_id);
+                // id_to_opcode_map[opcode_id] = instr->getOpcode();
+            }
+
+            // int opcode_id = opcode_to_id_map[instr->getOpcode()];
+            let opcode_id = opcode_to_id_map[&opcode];
+
+            // insert call to the instrumentation function with its arguments */
+            // *const ::std::os::raw::c_char
+            unsafe {
+                bindings::nvbit_insert_call(
+                    unsafe { instr.as_ptr() },
+                    ffi::CString::new("instrument_inst").unwrap().as_ptr(),
+                    bindings::ipoint_t::IPOINT_BEFORE,
+                );
+            }
+            // pass predicate value */
+            unsafe {
+                bindings::nvbit_add_call_arg_guard_pred_val(instr.as_ptr(), false);
+            }
+
+            // send opcode and pc */
+            unsafe {
+                bindings::nvbit_add_call_arg_const_val32(
+                    // instr.as_ref().get_ref() as *const Instr,
+                    unsafe { instr.as_ptr() },
+                    opcode_id as u32,
+                    false,
+                );
+            }
+            let offset = unsafe { instr.as_mut_ref().getOffset() };
+            unsafe {
+                bindings::nvbit_add_call_arg_const_val32(unsafe { instr.as_ptr() }, offset, false);
+            }
+        }
     }
-    /*   for (auto f : related_functions) { */
-    /*     // "recording" function was instrumented, */
-    /*     // if set insertion failed we have already encountered this function */
-    /*     if (!already_instrumented.insert(f).second) { */
-    /*       continue; */
-    /*     } */
-
-    /*     const std::vector<Instr *> &instrs = nvbit_get_instrs(ctx, f); */
-    /*     if (verbose) { */
-    /*       printf("Inspecting function %s at address 0x%lx\n", nvbit_get_func_name(ctx, f), nvbit_get_func_addr(f), true); */
-    /*     } */
-
-    /*     uint32_t cnt = 0; */
-    /*     // iterate on all the static instructions in the function */
-    /*     for (auto instr : instrs) { */
-    /*       if (cnt < instr_begin_interval || cnt >= instr_end_interval) { */
-    /*         cnt++; */
-    /*         continue; */
-    /*       } */
-
-    /*       if (verbose) { */
-    /*         instr->printDecoded(); */
-    /*       } */
-
-    /*       if (opcode_to_id_map.find(instr->getOpcode()) == opcode_to_id_map.end()) { */
-    /*         int opcode_id = opcode_to_id_map.size(); */
-    /*         opcode_to_id_map[instr->getOpcode()] = opcode_id; */
-    /*         id_to_opcode_map[opcode_id] = instr->getOpcode(); */
-    /*       } */
-
-    /*       int opcode_id = opcode_to_id_map[instr->getOpcode()]; */
-
-    /*       // insert call to the instrumentation function with its arguments */
-    /*       nvbit_insert_call(instr, "instrument_inst", IPOINT_BEFORE); */
-
-    /*       // pass predicate value */
-    /*       nvbit_add_call_arg_guard_pred_val(instr); */
-
-    /*       // send opcode and pc */
-    /*       nvbit_add_call_arg_const_val32(instr, opcode_id); */
-    /*       nvbit_add_call_arg_const_val32(instr, (int)instr->getOffset()); */
 
     /*       // check all operands. For now, we ignore constant, TEX, predicates and */
     /*       // unified registers. We only report vector regisers */
@@ -213,7 +269,8 @@ fn instrument_function_if_needed(ctx: *mut bindings::CUctx_st, func: *mut bindin
 
 #[no_mangle]
 pub extern "C" fn nvbit_at_cuda_event(
-    ctx: *mut bindings::CUctx_st,
+    // ctx: *mut bindings::CUctx_st,
+    ctx: CUcontext,
     is_exit: libc::c_int,
     cbid: bindings::nvbit_api_cuda_t,
     event_name: *const libc::c_char,
@@ -356,10 +413,13 @@ pub extern "C" fn nvbit_at_cuda_event(
                 // int binary_version;
                 // CUDA_SAFECALL(cuFuncGetAttribute(&binary_version,
                 //                                  CU_FUNC_ATTRIBUTE_BINARY_VERSION, p->f));
+                // instrument_function_if_needed(ctx, CUfunction::wrap(p.f));
                 instrument_function_if_needed(ctx, p.f);
 
+                // nvbit_enable_instrumented(ctx, p.f, true, true);
                 unsafe {
                     bindings::nvbit_enable_instrumented(ctx, p.f, true, true);
+                    // bindings::nvbit_enable_instrumented(ctx.as_mut_ptr(), p.f, true, true);
                 }
 
                 // if (active_region) {
@@ -413,11 +473,13 @@ pub extern "C" fn nvbit_at_cuda_event(
 }
 
 #[no_mangle]
-pub extern "C" fn nvbit_at_ctx_init(ctx: *mut CUctx_st) {
+// pub extern "C" fn nvbit_at_ctx_init(ctx: *mut CUctx_st) {
+pub extern "C" fn nvbit_at_ctx_init(ctx: CUcontext) {
     println!("nvbit_at_ctx_init");
 }
 
 #[no_mangle]
-pub extern "C" fn nvbit_at_ctx_term(ctx: *mut CUctx_st) {
+// pub extern "C" fn nvbit_at_ctx_term(ctx: *mut CUctx_st) {
+pub extern "C" fn nvbit_at_ctx_term(ctx: CUcontext) {
     println!("nvbit_at_ctx_term");
 }
