@@ -1,5 +1,14 @@
 ## nvbit-rs
 
+```bash
+nvcc -D_FORCE_INLINES -dc -c -std=c++11 -I../nvbit_release/core -Xptxas -cloning=no -Xcompiler -w  -O3 -Xcompiler -fPIC tracer_tool.cu -o tracer_tool.o
+
+nvcc -D_FORCE_INLINES -I../nvbit_release/core -maxrregcount=24 -Xptxas -astoolspatch --keep-device-functions -c inject_funcs.cu -o inject_funcs.o
+
+nvcc -D_FORCE_INLINES -O3 tracer_tool.o inject_funcs.o -L../nvbit_release/core -lnvbit -lcuda -shared -o tracer_tool.so
+```
+
+now is a good time to introduce workspaces
 make the examples individual crates with cargo.toml and build.rs
 write the custom tracing kernels per example 
 this way we might finally include the symbol
@@ -36,10 +45,12 @@ this way we might finally include the symbol
 The current goal is to get a working example of a tracer written in rust.
 Usage should be:
 ```bash
+# install lld
+sudo apt-get install -y lld
 # create a shared dynamic library that implements the nvbit hooks
-cargo build --example tracer
+cargo build -p accelsim
 # run the nvbit example CUDA application with the tracer
-LD_PRELOAD=./target/debug/examples/libtracer.so ./nvbit_release/test-apps/vectoradd/vectoradd
+LD_PRELOAD=./target/debug/libaccelsim.so nvbit-sys/nvbit_release/test-apps/vectoradd/vectoradd
 ```
 
 #### Notes
@@ -73,6 +84,9 @@ Problem: we need the `instrument_inst` function to be present in the binary, jus
 for the example:
 ```bash
 nm -D /home/roman/dev/nvbit-sys/tracer_nvbit/tracer_tool/tracer_tool.so | grep instrument
+
+# for a static library:
+nm --debug-syms target/debug/build/accelsim-a67c1762e4619dad/out/libinstrumentation.a | grep instrument
 ```
 Currently, its not :(
 

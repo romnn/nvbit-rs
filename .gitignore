@@ -1,10 +1,3 @@
-**/target
-**/Cargo.lock
-/bindings_debug.rs
-**/nvbit_release/test-apps/vectoradd/vectoradd
-**/nvbit_release/**/*.o
-**/nvbit_release/**/*.so
-**/tracer_nvbit/**/*.o
-**/tracer_nvbit/**/*.so
-**/tracer_nvbit/traces/
-**/tracer_tool/**/traces/
+.DS_Store
+Cargo.lock
+/target

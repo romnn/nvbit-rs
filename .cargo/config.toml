@@ -1,2 +1,32 @@
 [build]
-rustflags = ["-Clink-dead-code"]
+rustflags = [
+  # "-C", "relocation-model=pic",
+  # "-Clink-args=-Xlinker -rpath=/usr/lib/arm-linux-gnueabihf",
+  # "-Z", "print-link-args",
+  # "--emit=obj",
+  # "-C", "relocation-model=static",
+  # "-C", "link-arg=--undefined=nvbit_at_init",
+  # "-C", "link-arg=--undefined=nvbit_at_ctx_term",
+  # "-C", "link-arg=--undefined=nvbit_at_ctx_init",
+  # "-C", "link-arg=--undefined=nvbit_at_cuda_event",
+  # "-C", "relocation-model=pic",
+  "-C", "relocation-model=pic",
+  # "-C", "strip=none",
+  # "--emit=obj",
+]
+
+# https://github.com/rust-lang/rfcs/issues/2771#issuecomment-481630590
+# lto = true
+# incremental = false
+# strip = "none"
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = [
+  # "-C", "link-dead-code=yes",
+  # "-C", "link-args=-rdynamic --allow-multiple-definition",
+  # "-C", "link-args=-rdynamic -fvisibility=hidden",
+  # -export-dynamic -Wallow-multiple-definition",
+  # "-C", "relocation-model=pic",
+  # "-C", "linker=clang",
+  # "-C", "link-arg=-fuse-ld=lld",
+]

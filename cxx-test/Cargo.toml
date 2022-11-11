@@ -5,10 +5,10 @@ edition = "2021"
 
 [dependencies]
 cxx = "1.0.81"
-libc = "0.2"
-lazy_static = "1"
+# libc = "0.2"
+# lazy_static = "1"
 
 [build-dependencies]
 cxx-build = "1.0.81"
-bindgen    = { version = "0.61", default-features = false, features = ["runtime"] }
-cc = "1.0.75"
+# bindgen    = { version = "0.61", default-features = false, features = ["runtime"] }
+# cc = "1.0.75"
