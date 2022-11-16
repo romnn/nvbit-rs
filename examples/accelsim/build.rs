@@ -18,10 +18,30 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
 
     // rerun if the instrumentation changes
-    println!("cargo:rerun-if-changed=instrumentation/");
+    println!("cargo:rerun-if-changed=instrumentation");
+    println!("cargo:rerun-if-changed=instrumentation/inject_funcs.cu");
 
-    if false {
-        // only compile the tool
+    if true {
+        // compile the injection functions
+        let tool_obj = output_path().join("tool.o");
+        let result = std::process::Command::new("nvcc")
+            .args([
+                "-I../../nvbit-sys/nvbit_release/core",
+                "-Xcompiler",
+                "-fPIC",
+                "-dc",
+                "-c",
+                "instrumentation/tool.cu",
+                "-o",
+                // instr_obj.as_os_str().to_str().unwrap(), // .display().as_str(),
+                tool_obj.to_string_lossy().to_string().as_str(), // .display().as_str(),
+            ])
+            .output()
+            .expect("nvcc failed");
+        println!("nvcc result: {}", String::from_utf8_lossy(&result.stderr));
+        assert!(result.status.success());
+
+        // compile the injection functions
         let inject_obj = output_path().join("inject_funcs.o");
         let result = std::process::Command::new("nvcc")
             .args([
@@ -33,8 +53,8 @@ fn main() {
                 "-astoolspatch",
                 "--keep-device-functions",
                 // "-c",
-                // "-Xcompiler",
-                // "-fPIC",
+                "-Xcompiler",
+                "-fPIC",
                 // "-dc",
                 "-c",
                 "instrumentation/inject_funcs.cu",
@@ -47,7 +67,7 @@ fn main() {
         println!("nvcc result: {}", String::from_utf8_lossy(&result.stderr));
         assert!(result.status.success());
 
-        let inject_obj_link = output_path().join("inject_funcs_link.o");
+        let dev_obj_link = output_path().join("dev_link.o");
         let result = std::process::Command::new("nvcc")
             .args([
                 // "-D_FORCE_INLINES",
@@ -59,12 +79,13 @@ fn main() {
                 "-Xcompiler",
                 "-fPIC",
                 "-dlink",
-                inject_obj.to_string_lossy().to_string().as_str(),
+                &tool_obj.to_string_lossy(),
+                &inject_obj.to_string_lossy(),
                 // "-lnvbit"
                 // "-lcuda",
                 // "-shared",
                 "-o",
-                inject_obj_link.to_string_lossy().to_string().as_str(),
+                &dev_obj_link.to_string_lossy(),
                 // "tracer_tool.so",
             ])
             .output()
@@ -72,66 +93,87 @@ fn main() {
         println!("nvcc result: {}", String::from_utf8_lossy(&result.stderr));
         assert!(result.status.success());
 
-        println!("cargo:rustc-link-arg={}", inject_obj.display());
-        println!("cargo:rustc-link-arg={}", inject_obj_link.display());
+        // println!("cargo:rustc-link-arg=-Wl,-export-dynamic");
+        // println!("cargo:rustc-link-arg=-Wl,-fvisibility=extern");
+        // println!("cargo:rustc-link-arg=-Wl,--whole-archive");
+        // println!("cargo:rustc-link-arg={}", inject_obj.display());
+        // println!("cargo:rustc-link-arg={}", inject_obj_link.display());
+        // println!("cargo:rustc-link-arg=-Wl,--no-whole-archive");
 
-        let use_static = false;
-        let lib = if use_static {
-            let lib = output_path().join("libinstrumentation.a");
-            // ar r library.a lib_source.o
-            std::process::Command::new("ar")
-                .args([
-                    "r",
-                    lib.to_string_lossy().to_string().as_str(),
-                    inject_obj.to_string_lossy().to_string().as_str(),
-                    inject_obj_link.to_string_lossy().to_string().as_str(),
-                ])
-                .output()
-                .expect("linking failed");
-            println!(
-                "linking result: {}",
-                String::from_utf8_lossy(&result.stderr)
-            );
-            assert!(result.status.success());
+        if true {
+            let use_static = true;
+            let lib = if use_static {
+                let lib = output_path().join("libinstrumentation.a");
+                // ar r library.a lib_source.o
+                std::process::Command::new("ar")
+                    .args([
+                        // "r",
+                        "cru",
+                        lib.to_string_lossy().to_string().as_str(),
+                        tool_obj.to_string_lossy().to_string().as_str(),
+                        inject_obj.to_string_lossy().to_string().as_str(),
+                        dev_obj_link.to_string_lossy().to_string().as_str(),
+                    ])
+                    .output()
+                    .expect("linking failed");
+                println!(
+                    "linking result: {}",
+                    String::from_utf8_lossy(&result.stderr)
+                );
+                assert!(result.status.success());
 
-            println!("cargo:rustc-link-search=native={}", output_path().display());
-            println!("cargo:rustc-link-lib=static=instrumentation");
+                // println!("cargo:rustc-link-arg=-Wl,--whole-archive,-linstrumentation,-Wl,--no-whole-archive");
+                println!("cargo:rustc-link-search=native={}", output_path().display());
+                // println!("cargo:rustc-link-arg=-L{}", output_path().display());
+                // println!("cargo:rustc-link-arg=-Wl,-Bstatic");
+                // println!("cargo:rustc-link-arg=-Wl,--whole-archive");
+                // println!("cargo:rustc-link-arg=-linstrumentation");
 
-            lib
-        } else {
-            let lib = output_path().join("libinstrumentation.so");
-            let result = std::process::Command::new("clang++")
-                .args([
-                    inject_obj.to_string_lossy().to_string().as_str(),
-                    inject_obj_link.to_string_lossy().to_string().as_str(),
-                    "-lcuda",
-                    "-lcudart",
-                    "-shared",
-                    "-o",
-                    lib.to_string_lossy().to_string().as_str(),
-                    // "tracer_tool.so",
-                    // "-D_FORCE_INLINES",
-                    // "-O3",
-                    // tracer_tool.o
-                    // "-L../nvbit_release/core",
-                    // "-rdc=true",
-                    // "-lcudart",
-                    // "-Xcompiler",
-                    // "-fPIC",
-                ])
-                .output()
-                .expect("linking failed");
-            println!(
-                "linking result: {}",
-                String::from_utf8_lossy(&result.stderr)
-            );
-            assert!(result.status.success());
+                println!("cargo:rustc-link-lib=static:+whole-archive=instrumentation");
 
-            println!("cargo:rustc-link-search=native={}", output_path().display());
-            println!("cargo:rustc-link-lib=dylib=instrumentation");
+                // println!("cargo:rustc-link-lib=static=instrumentation");
+                // println!("cargo:rustc-link-arg=-Wl,--no-whole-archive");
 
-            lib
-        };
+                lib
+            } else {
+                let lib = output_path().join("libinstrumentation.so");
+                let result = std::process::Command::new("clang++")
+                    .args([
+                        tool_obj.to_string_lossy().to_string().as_str(),
+                        inject_obj.to_string_lossy().to_string().as_str(),
+                        dev_obj_link.to_string_lossy().to_string().as_str(),
+                        "-lcuda",
+                        "-lcudart",
+                        "-shared",
+                        "-o",
+                        lib.to_string_lossy().to_string().as_str(),
+                        // "tracer_tool.so",
+                        // "-D_FORCE_INLINES",
+                        // "-O3",
+                        // tracer_tool.o
+                        // "-L../nvbit_release/core",
+                        // "-rdc=true",
+                        // "-lcudart",
+                        // "-Xcompiler",
+                        // "-fPIC",
+                    ])
+                    .output()
+                    .expect("linking failed");
+                println!(
+                    "linking result: {}",
+                    String::from_utf8_lossy(&result.stderr)
+                );
+                assert!(result.status.success());
+
+                // println!("cargo:rustc-link-arg=-Wl,--whole-archive");
+                // println!("cargo:rustc-link-search=native={}", output_path().display());
+                // println!("cargo:rustc-link-lib=dylib=instrumentation");
+
+                // ENV RUSTFLAGS="-C link-arg=-L/usr/local/share/dpdk/x86_64-native-linux-gcc/lib -C link-arg=-Wl,--whole-archive -C link-arg=-ldpdk -C link-arg=-Wl,--no-whole-archive -C link-arg=-lnuma -C link-arg=-lm -C link-arg=-lc"
+
+                lib
+            };
+        }
 
         // cc::Build::new()
         //     // .compiler("nvcc")

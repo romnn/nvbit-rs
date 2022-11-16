@@ -44,12 +44,14 @@ single:
 static: 
 	# this should become our static lib?
 	nvcc -dc -c -std=c++11 -I../nvbit_release/core -Xcompiler -w -O3 -Xcompiler -fPIC tracer_tool.cu -o tracer_tool.o -lcuda -lcudart 
-	ar cru tracer_tool.a tracer_tool.o
+	# ar cru tracer_tool.a tracer_tool.o
 	# these can remain an .o
 	nvcc -I../nvbit_release/core -maxrregcount=24 -Xptxas -astoolspatch --keep-device-functions -c inject_funcs.cu -o inject_funcs.o -lcuda -lcudart 
 	# device linking link
 	# nvcc -Xcompiler -fPIC -dlink tracer_tool.o inject_funcs.o -o inject_funcs_link.o 
-	nvcc -Xcompiler -fPIC -dlink ../../target/debug/libaccelsim.a inject_funcs.o -o inject_funcs_link.o 
+	# ../../target/debug/libaccelsim.a 
+	nvcc -Xcompiler -fPIC -dlink inject_funcs.o -o inject_funcs_link.o 
+	ar cru inject_funcs.a inject_funcs.o inject_funcs_link.o
 	# -lcuda -lcudart
 	# -O3 -D_FORCE_INLINES 
 	# todo: replace this with only g++
@@ -67,12 +69,19 @@ static:
 	#
 	# clang++ -L../nvbit_release/core inject_funcs.o inject_funcs_link.o tracer_tool.a -lnvbit -lcuda -lcudart -shared -o tracer_tool.so
 	#-export_dynamic,
-	g++ \
+	# g++ and clang++ also work
+	# -Wl,--no-whole-archive inject_funcs.o inject_funcs_link.o
+	cc \
 		-L../nvbit_release/core \
-		-Wl,--no-whole-archive inject_funcs.o inject_funcs_link.o \
-		-Wl,--whole-archive ../../target/debug/libaccelsim.a \
-		-Wl,--no-whole-archive -lnvbit -lcuda -lcudart -lcudadevrt \
+		-Wl,--whole-archive ../../target/release/libaccelsim.a \
+		-Wl,--no-whole-archive -lstdc++ -lnvbit -lcuda -lcudart -lcudadevrt \
 		-shared -o tracer_tool.so
+
+	# cc \
+	# 	-L../nvbit_release/core \
+	# 	-Wl,--whole-archive inject_funcs.a ../../target/debug/libaccelsim.a \
+	# 	-Wl,--no-whole-archive -lstdc++ -lnvbit -lcuda -lcudart -lcudadevrt \
+	# 	-shared -o tracer_tool.so
 	# nvcc -L../nvbit_release/core inject_funcs.o inject_funcs_link.o ../../target/debug/libaccelsim.a -lnvbit -lcuda -lcudart -lcudadevrt -shared -o tracer_tool.so
 	# ld.lld -stdlib=libc++ -L/usr/lib/x86_64-linux-gnu tracer_tool.o inject_funcs.o inject_funcs_link.o -L../nvbit_release/core -lnvbit /lib/x86_64-linux-gnu/libstdc++.so.6 -lcuda -lcudart -shared -o tracer_tool.so
 

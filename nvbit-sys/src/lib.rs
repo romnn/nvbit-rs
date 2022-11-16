@@ -4,7 +4,11 @@ use std::pin::Pin;
 
 #[allow(warnings, dead_code)]
 pub mod bindings {
-    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+    include!(concat!(env!("OUT_DIR"), "/bindings/nvbit.rs"));
+
+    pub mod channel {
+        include!(concat!(env!("OUT_DIR"), "/bindings/channel.rs"));
+    }
 
     // unsafe impl cxx::ExternType for CUfunction {
     //     type Id = cxx::type_id!("CUfunction");
@@ -138,6 +142,9 @@ mod ffi {
         // include!("nvbit/nvbit.cc");
         // include!("nvbit-sys/nvbit/nvbit.h");
         include!("nvbit-sys/nvbit/nvbit.h");
+        include!("nvbit-sys/nvbit/channel.h");
+        // include!("nvbit-sys/nvbit_release/core/utils/channel.hpp");
+        // include!("nvbit-sys/nvbit_release/core/utils/channel.hpp");
         // include!("nvbit-sys/nvbit/nvbit.h");
         // include!("nvbit_sys/nvbit/nvbit.cc");
         // include!("nvbit_release/core/nvbit.h");
@@ -168,6 +175,29 @@ mod ffi {
         // type CUresult;
         // type Instr;
         type Instr = super::bindings::Instr;
+
+        type ChannelDev; //  = super::bindings::Instr;
+        type ChannelHost; //  = super::bindings::Instr;
+
+        fn new_dev_channel() -> UniquePtr<ChannelDev>;
+        fn new_host_channel() -> UniquePtr<ChannelHost>;
+
+        // unsafe fn init(
+        //     self: Pin<&mut ChannelDev>,
+        //     id: i32,
+        //     h_doorbell: *mut i32,
+        //     buff_size: i32,
+        // );
+
+        // unsafe fn init(
+        //     self: Pin<&mut ChannelHost>,
+        //     id: i32,
+        //     buff_size: i32,
+        //     channel_dev: *mut ChannelDev,
+        //     thread_fun: fn() -> libc::c_void,
+        //     args: *mut libc::c_void,
+        // );
+
         // const char* getSass();
 
         // /// returns the "string" containing the SASS, i.e. IMAD.WIDE R8, R8, R9
@@ -402,21 +432,21 @@ pub use ffi::*;
 
 extern "C" {
     // fn link_me();
-    fn init_nvbit();
-    fn instrument_inst();
+    // fn init_nvbit();
+    // fn instrument_inst();
 }
 
-pub fn init() {
-    // unsafe { link_me() }
-    unsafe { init_nvbit() }
-}
+// pub fn init() {
+//     // unsafe { link_me() }
+//     // unsafe { init_nvbit() }
+// }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn has_nvbit() {
-        unsafe { init_nvbit() }
-    }
+    // #[test]
+    // fn has_nvbit() {
+    //     unsafe { init_nvbit() }
+    // }
 }

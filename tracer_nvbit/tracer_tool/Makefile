@@ -36,7 +36,7 @@ $(NVBIT_TOOL): $(OBJECTS) $(NVBIT_PATH)/libnvbit.a
 # -Wall
 # -arch=sm_$(ARCH)
 %.o: %.cu common.h
-	$(NVCC) -dc -c -std=c++11 $(INCLUDES) -Xptxas -cloning=no -Xcompiler -w  -O3 -Xcompiler -fPIC $< -o $@
+	$(NVCC) -dc -c -std=c++11 $(INCLUDES) -Xptxas -cloning=no -Xcompiler -w -O3 -Xcompiler -fPIC $< -o $@
 
 # -Wall 
 # -arch=sm_$(ARCH) 

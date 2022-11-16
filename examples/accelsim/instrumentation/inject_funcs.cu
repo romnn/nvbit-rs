@@ -6,17 +6,19 @@
 #include "utils/channel.hpp"
 /* #include "nvbit-sys/nvbit_release/core/utils/utils.h" */
 /* #include "nvbit-sys/nvbit_release/core/utils/channel.hpp" */
+/* #include "nvbit_tool.h" */
 
 // contains definition of the inst_trace_t structure
 #include "common.h"
+/* #include "nvbit_tool.h" */
 /* #include "nvbit-sys/nvbit/common.h" */
 
 
 /* extern "C" __noinline__ void say_hi() { */
-extern "C" void say_hi() {
-  printf("I WAS LINKED!!!\n");
-  /* fuu */
-}
+/* extern "C" void say_hi() { */
+/*   printf("I WAS LINKED!!!\n"); */
+/*   /1* fuu *1/ */
+/* } */
 
 // Instrumentation function that we want to inject, please note the use of
 // extern "C" __device__ __noinline__
@@ -77,6 +79,7 @@ extern "C" __device__ __noinline__ void instrument_inst(
 
   // first active lane pushes information on the channel
   if (first_laneid == laneid) {
+    /* printf("device: instrument_inst\n"); */
     ChannelDev *channel_dev = (ChannelDev *)pchannel_dev;
     channel_dev->push(&ma, sizeof(inst_trace_t));
     atomicAdd((unsigned long long *)ptotal_dynamic_instr_counter, 1);

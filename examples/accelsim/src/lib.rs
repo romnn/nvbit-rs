@@ -1,8 +1,6 @@
-// #![no_main]
-// #![no_std]
-
 #![allow(warnings)]
-// #[link(name = "instrument")]
+
+use anyhow::Result;
 use lazy_static::lazy_static;
 use libc;
 use libloading::{Library, Symbol};
@@ -49,9 +47,9 @@ use std::sync::{Arc, Mutex};
 #[no_mangle]
 #[inline(never)]
 pub extern "C" fn nvbit_at_init() {
-    init();
+    // init();
     // println!("{:?}", rust_nvbit_get_related_functions());
-    println!("it works");
+    // println!("it works");
 }
 
 // todo: use static vars for all those globals
@@ -76,6 +74,92 @@ lazy_static! {
     static ref ALREADY_INSTRUMENTED: Mutex<HashSet<CUfunctionKey>> = Mutex::new(HashSet::new());
 }
 
+#[derive(Debug, Default, Clone)]
+struct InstrumentInstArgs {
+    opcode_id: libc::c_int,
+    vpc: u32,
+    is_mem: bool,
+    addr: u64,
+    width: i32,
+    desReg: i32,
+    srcReg1: i32,
+    srcReg2: i32,
+    srcReg3: i32,
+    srcReg4: i32,
+    srcReg5: i32,
+    srcNum: i32,
+    pchannel_dev: u64,
+    ptotal_dynamic_instr_counter: u64,
+    preported_dynamic_instr_counter: u64,
+    pstop_report: u64,
+}
+
+impl InstrumentInstArgs {
+    pub unsafe fn instrument(&self, instr: *const Instr) {
+        bindings::nvbit_add_call_arg_guard_pred_val(instr, false);
+        bindings::nvbit_add_call_arg_const_val32(
+            instr,
+            self.opcode_id.try_into().unwrap_or_default(),
+            false,
+        );
+        bindings::nvbit_add_call_arg_const_val32(instr, self.vpc, false);
+        bindings::nvbit_add_call_arg_const_val32(instr, self.is_mem as u32, false);
+        bindings::nvbit_add_call_arg_mref_addr64(
+            instr,
+            self.addr.try_into().unwrap_or_default(),
+            false,
+        );
+        bindings::nvbit_add_call_arg_const_val32(
+            instr,
+            self.width.try_into().unwrap_or_default(),
+            false,
+        );
+        bindings::nvbit_add_call_arg_const_val32(
+            instr,
+            self.desReg.try_into().unwrap_or_default(),
+            false,
+        );
+        bindings::nvbit_add_call_arg_const_val32(
+            instr,
+            self.srcReg1.try_into().unwrap_or_default(),
+            false,
+        );
+        bindings::nvbit_add_call_arg_const_val32(
+            instr,
+            self.srcReg2.try_into().unwrap_or_default(),
+            false,
+        );
+        bindings::nvbit_add_call_arg_const_val32(
+            instr,
+            self.srcReg3.try_into().unwrap_or_default(),
+            false,
+        );
+        bindings::nvbit_add_call_arg_const_val32(
+            instr,
+            self.srcReg4.try_into().unwrap_or_default(),
+            false,
+        );
+        bindings::nvbit_add_call_arg_const_val32(
+            instr,
+            self.srcReg5.try_into().unwrap_or_default(),
+            false,
+        );
+        bindings::nvbit_add_call_arg_const_val32(
+            instr,
+            self.srcNum.try_into().unwrap_or_default(),
+            false,
+        );
+        bindings::nvbit_add_call_arg_const_val64(instr, self.pchannel_dev, false);
+        bindings::nvbit_add_call_arg_const_val64(instr, self.ptotal_dynamic_instr_counter, false);
+        bindings::nvbit_add_call_arg_const_val64(
+            instr,
+            self.preported_dynamic_instr_counter,
+            false,
+        );
+        bindings::nvbit_add_call_arg_const_val64(instr, self.pstop_report, false);
+    }
+}
+
 // fn instrument_function_if_needed(ctx: CUcontext , func: CUfunction) {
 // fn instrument_function_if_needed(ctx: *mut bindings::CUctx_st, func: *mut bindings::CUfunc_st) {
 fn instrument_function_if_needed(ctx: CUcontext, func: CUfunction) {
@@ -93,7 +177,7 @@ fn instrument_function_if_needed(ctx: CUcontext, func: CUfunction) {
         related_functions.into_iter().copied().collect();
 
     related_functions.push(unsafe { CUfunctionShim::wrap(func) });
-    println!("number of related functions: {:?}", related_functions.len());
+    // println!("number of related functions: {:?}", related_functions.len());
 
     for f in &mut related_functions {
         // "recording" function was instrumented,
@@ -132,21 +216,19 @@ fn instrument_function_if_needed(ctx: CUcontext, func: CUfunction) {
         // const std::vector<Instr *> &instrs = nvbit_get_instrs(ctx, f);
         // const std::vector<Instr *> &instrs = nvbit_get_instrs(ctx, f);
         let instrs = unsafe { rust_nvbit_get_instrs(ctx, func) };
-        println!("found {} instructions", instrs.len());
-        println!("instructions {:#?} ", instrs);
+        // println!("found {} instructions", instrs.len());
+        // println!("instructions {:#?} ", instrs);
 
-        let mut count: u32 = 0;
+        let mut instr_count: u32 = 0;
         for instr in instrs.iter() {
+            // continue;
             // iterate on all the static instructions in the function
             // if count < instr_begin_interval || count >= instr_end_interval {
             //     count += 1;
             //     continue;
             // }
 
-            // let ptr: &mut Instr = unsafe { &mut *instr.as_mut_ptr() };
-            // let instr: Pin<&mut Instr> = unsafe { Pin::new_unchecked(ptr) };
-
-            unsafe { instr.as_mut_ref().printDecoded() };
+            // unsafe { instr.as_mut_ref().printDecoded() };
 
             // std::map<std::string, int> opcode_to_id_map;
             let mut opcode_to_id_map: HashMap<String, usize> = HashMap::new();
@@ -176,99 +258,213 @@ fn instrument_function_if_needed(ctx: CUcontext, func: CUfunction) {
                     bindings::ipoint_t::IPOINT_BEFORE,
                 );
             }
+            let mut inst_args = InstrumentInstArgs::default();
+
             // pass predicate value */
-            unsafe {
-                bindings::nvbit_add_call_arg_guard_pred_val(instr.as_ptr(), false);
-            }
+            // unsafe {
+            //     bindings::nvbit_add_call_arg_guard_pred_val(instr.as_ptr(), false);
+            // }
+            // inst_args.pred = false as libc::c_int;
 
             // send opcode and pc */
-            unsafe {
-                bindings::nvbit_add_call_arg_const_val32(
-                    // instr.as_ref().get_ref() as *const Instr,
-                    unsafe { instr.as_ptr() },
-                    opcode_id as u32,
-                    false,
-                );
+            // unsafe {
+            //     bindings::nvbit_add_call_arg_const_val32(
+            //         // instr.as_ref().get_ref() as *const Instr,
+            //         unsafe { instr.as_ptr() },
+            //         opcode_id as u32,
+            //         false,
+            //     );
+            // }
+            inst_args.opcode_id = opcode_id as i32;
+
+            inst_args.vpc = unsafe { instr.as_mut_ref().getOffset() };
+            // unsafe {
+            //     bindings::nvbit_add_call_arg_const_val32(unsafe { instr.as_ptr() }, offset, false);
+            // }
+
+            const MAX_SRC: usize = 5;
+            // check all operands. For now, we ignore constant, TEX, predicates and
+            // unified registers. We only report vector regisers
+            let mut src_oprd: [libc::c_int; MAX_SRC] = [-1; MAX_SRC];
+            let mut srcNum: usize = 0;
+            let mut dst_oprd: libc::c_int = -1;
+            let mut mem_oper_idx: libc::c_int = -1;
+
+            // find dst reg and handle the special case if the oprd[0] is mem
+            // (e.g. store and RED)
+
+            let num_operands = unsafe { instr.as_mut_ref().getNumOperands() };
+
+            if num_operands > 0 {
+                let first_operand = unsafe { *instr.as_mut_ref().getOperand(0) };
+                match first_operand.type_ {
+                    bindings::InstrType_OperandType::REG => {
+                        dst_oprd = unsafe { first_operand.u.reg.num };
+                    }
+                    bindings::InstrType_OperandType::MREF => {
+                        src_oprd[0] = unsafe { first_operand.u.mref.ra_num };
+                        mem_oper_idx = 0;
+                        srcNum += 1;
+                    }
+                    _ => {
+                        // skip anything else (constant and predicates)
+                    }
+                }
             }
-            let offset = unsafe { instr.as_mut_ref().getOffset() };
-            unsafe {
-                bindings::nvbit_add_call_arg_const_val32(unsafe { instr.as_ptr() }, offset, false);
+
+            // find src regs and mem
+            // dbg!(&num_operands);
+            // dbg!(&unsafe { instr.as_mut_ref().getNumOperands() });
+            for i in 1..(MAX_SRC.min(num_operands as usize)) {
+                // dbg!(&i);
+                // dbg!(i as i32);
+                assert!(i < MAX_SRC);
+                assert!(i < num_operands as usize);
+                let op = unsafe { *instr.as_mut_ref().getOperand(i as i32) };
+                match op.type_ {
+                    bindings::InstrType_OperandType::MREF => {
+                        // mem is found
+                        assert!(srcNum < MAX_SRC);
+                        src_oprd[srcNum] = unsafe { op.u.mref.ra_num };
+                        srcNum += 1;
+                        // TODO: handle LDGSTS with two mem refs
+                        assert!(mem_oper_idx == -1); // ensure one memory operand per inst
+                        mem_oper_idx += 1;
+                    }
+                    bindings::InstrType_OperandType::REG => {
+                        // reg is found
+                        assert!(srcNum < MAX_SRC);
+                        src_oprd[srcNum] = unsafe { op.u.reg.num };
+                        srcNum += 1;
+                    }
+                    _ => {
+                        // skip anything else (constant and predicates)
+                    }
+                };
             }
+
+            // mem addresses info
+            if (mem_oper_idx >= 0) {
+                inst_args.is_mem = true;
+                inst_args.addr = 0;
+                inst_args.width = unsafe { instr.as_mut_ref().getSize() };
+                // unsafe {
+                //     bindings::nvbit_add_call_arg_const_val32(unsafe { instr.as_ptr() }, 1, false);
+                //     // this is why mref function must be part of the binary
+                //     bindings::nvbit_add_call_arg_mref_addr64(unsafe { instr.as_ptr() }, 0, false);
+                //     let size =
+                //     bindings::nvbit_add_call_arg_const_val32(
+                //         unsafe { instr.as_ptr() },
+                //         size as u32,
+                //         false,
+                //     );
+                // }
+            } else {
+                inst_args.is_mem = false;
+                inst_args.addr = 1; // todo: was -1
+                inst_args.width = 1; // todo: was -1
+
+                // unsafe {
+                //     bindings::nvbit_add_call_arg_const_val32(unsafe { instr.as_ptr() }, 0, false);
+                //     bindings::nvbit_add_call_arg_const_val64(unsafe { instr.as_ptr() }, 1, false);
+                //     // todo: should be -1
+                //     bindings::nvbit_add_call_arg_const_val32(unsafe { instr.as_ptr() }, 1, false);
+                // }
+            }
+
+            inst_args.desReg = dst_oprd;
+            // reg info
+            // unsafe {
+            //     bindings::nvbit_add_call_arg_const_val32(
+            //         unsafe { instr.as_ptr() },
+            //         dst_oprd as u32,
+            //         false,
+            //     );
+            // }
+            // we set the default value to -1
+            inst_args.srcReg1 = src_oprd[0];
+            inst_args.srcReg2 = src_oprd[1];
+            inst_args.srcReg3 = src_oprd[2];
+            inst_args.srcReg4 = src_oprd[3];
+            inst_args.srcReg5 = src_oprd[4];
+
+            // for i in 0..srcNum {
+            //     unsafe {
+            //         bindings::nvbit_add_call_arg_const_val32(
+            //             unsafe { instr.as_ptr() },
+            //             src_oprd[i] as u32,
+            //             false,
+            //         );
+            //     }
+            // }
+            // for i in srcNum..MAX_SRC {
+            //     unsafe {
+            //         // todo: should be -1
+            //         bindings::nvbit_add_call_arg_const_val32(unsafe { instr.as_ptr() }, 1, false);
+            //     }
+            // }
+
+            inst_args.srcNum = srcNum as i32;
+            // unsafe {
+            //     bindings::nvbit_add_call_arg_const_val32(
+            //         unsafe { instr.as_ptr() },
+            //         srcNum as u32,
+            //         false,
+            //     );
+            // }
+
+            // add pointer to channel_dev and other counters
+
+            inst_args.ptotal_dynamic_instr_counter =
+                (stats.ptotal_dynamic_instr_counter as *mut libc::c_void) as u64;
+            inst_args.preported_dynamic_instr_counter =
+                (stats.preported_dynamic_instr_counter as *mut libc::c_void) as u64;
+
+            inst_args.pstop_report = (stats.pstop_report as *mut libc::c_void) as u64;
+            // unsafe {
+            //     bindings::nvbit_add_call_arg_const_val64(
+            //         unsafe { instr.as_ptr() },
+            //         0,
+            //         // (uint64_t) & channel_dev,
+            //         false,
+            //     );
+            // }
+            // todo: only the the atomics for now, but define them in the
+            //
+            // CUdeviceptr = ::std::os::raw::c_ulonglong
+
+            // unsafe {
+            //     bindings::nvbit_add_call_arg_const_val64(
+            //         unsafe { instr.as_ptr() },
+            //         // (uint64_t) & total_dynamic_instr_counter,
+            //         // (&mut stats.total_dynamic_instr_counter as *mut bindings::CUdeviceptr) as u64,
+            //         // &mut stats.total_dynamic_instr_counter as *mut *mut libc::c_void as u64, // libc::c_void),
+            //         (stats.total_dynamic_instr_counter as *mut libc::c_void) as u64, // libc::c_void),
+            //         false,
+            //     );
+            // }
+            // unsafe {
+            //     bindings::nvbit_add_call_arg_const_val64(
+            //         unsafe { instr.as_ptr() },
+            //         0,
+            //         // (uint64_t) & reported_dynamic_instr_counter,
+            //         false,
+            //     );
+            // }
+            // unsafe {
+            //     bindings::nvbit_add_call_arg_const_val64(
+            //         unsafe { instr.as_ptr() },
+            //         0,
+            //         // (uint64_t) & stop_report,
+            //         false,
+            //     );
+            // }
+            unsafe {
+                inst_args.instrument(unsafe { instr.as_ptr() });
+            };
+            instr_count += 1;
         }
     }
-
-    /*       // check all operands. For now, we ignore constant, TEX, predicates and */
-    /*       // unified registers. We only report vector regisers */
-    /*       int src_oprd[MAX_SRC]; */
-    /*       int srcNum = 0; */
-    /*       int dst_oprd = -1; */
-    /*       int mem_oper_idx = -1; */
-
-    /*       // find dst reg and handle the special case if the oprd[0] is mem */
-    /*       // (e.g. store and RED) */
-    /*       if (instr->getNumOperands() > 0 && */
-    /*           instr->getOperand(0)->type == InstrType::OperandType::REG) */
-    /*         dst_oprd = instr->getOperand(0)->u.reg.num; */
-    /*       else if (instr->getNumOperands() > 0 && */
-    /*                instr->getOperand(0)->type == InstrType::OperandType::MREF) { */
-    /*         src_oprd[0] = instr->getOperand(0)->u.mref.ra_num; */
-    /*         mem_oper_idx = 0; */
-    /*         srcNum++; */
-    /*       } */
-
-    /*       // find src regs and mem */
-    /*       for (int i = 1; i < MAX_SRC; i++) { */
-    /*         if (i < instr->getNumOperands()) { */
-    /*           const InstrType::operand_t *op = instr->getOperand(i); */
-    /*           if (op->type == InstrType::OperandType::MREF) { */
-    /*             // mem is found */
-    /*             assert(srcNum < MAX_SRC); */
-    /*             src_oprd[srcNum] = instr->getOperand(i)->u.mref.ra_num; */
-    /*             srcNum++; */
-    /*             // TO DO: handle LDGSTS with two mem refs */
-    /*             assert(mem_oper_idx == -1); // ensure one memory operand per inst */
-    /*             mem_oper_idx++; */
-    /*           } else if (op->type == InstrType::OperandType::REG) { */
-    /*             // reg is found */
-    /*             assert(srcNum < MAX_SRC); */
-    /*             src_oprd[srcNum] = instr->getOperand(i)->u.reg.num; */
-    /*             srcNum++; */
-    /*           } */
-    /*           // skip anything else (constant and predicates) */
-    /*         } */
-    /*       } */
-
-    /*       // mem addresses info */
-    /*       if (mem_oper_idx >= 0) { */
-    /*         nvbit_add_call_arg_const_val32(instr, 1); */
-    /*         nvbit_add_call_arg_mref_addr64(instr, 0); */
-    /*         nvbit_add_call_arg_const_val32(instr, (int)instr->getSize()); */
-    /*       } else { */
-    /*         nvbit_add_call_arg_const_val32(instr, 0); */
-    /*         nvbit_add_call_arg_const_val64(instr, -1); */
-    /*         nvbit_add_call_arg_const_val32(instr, -1); */
-    /*       } */
-
-    /*       // reg info */
-    /*       nvbit_add_call_arg_const_val32(instr, dst_oprd); */
-    /*       for (int i = 0; i < srcNum; i++) { */
-    /*         nvbit_add_call_arg_const_val32(instr, src_oprd[i]); */
-    /*       } */
-    /*       for (int i = srcNum; i < MAX_SRC; i++) { */
-    /*         nvbit_add_call_arg_const_val32(instr, -1); */
-    /*       } */
-    /*       nvbit_add_call_arg_const_val32(instr, srcNum); */
-
-    /*       // add pointer to channel_dev and other counters */
-    /*       nvbit_add_call_arg_const_val64(instr, (uint64_t)&channel_dev); */
-    /*       nvbit_add_call_arg_const_val64(instr, */
-    /*                                      (uint64_t)&total_dynamic_instr_counter); */
-    /*       nvbit_add_call_arg_const_val64(instr, */
-    /*                                      (uint64_t)&reported_dynamic_instr_counter); */
-    /*       nvbit_add_call_arg_const_val64(instr, (uint64_t)&stop_report); */
-    /*       cnt++; */
-    /*     } */
-    /*   } */
 }
 
 #[no_mangle]
@@ -284,10 +480,10 @@ pub extern "C" fn nvbit_at_cuda_event(
 ) {
     let is_exit = is_exit != 0;
     println!("nvbit_at_cuda_event");
-    unsafe { say_hi() };
-    println!("is exit: {:?}", is_exit);
+    // unsafe { say_hi() };
+    // println!("is exit: {:?}", is_exit);
     let event_name = unsafe { ffi::CStr::from_ptr(event_name).to_string_lossy() };
-    println!("name: {:?}", event_name);
+    println!("name: {:?} (is_exit = {})", event_name, is_exit);
 
     // if (skip_flag)
     // return;
@@ -346,7 +542,7 @@ pub extern "C" fn nvbit_at_cuda_event(
                     unsafe { &mut *(params as *mut bindings::cuMemcpyHtoD_v2_params) };
 
                 // let p: &bindings::cuMemcpyHtoD_v2_params = (cuMemcpyHtoD_v2_params *)params;
-                dbg!(p);
+                // dbg!(p);
                 // char buffer[1024];
                 // kernelsFile = fopen(kernelslist_location.c_str(), "a");
                 // sprintf(buffer, "MemcpyHtoD,0x%016lx,%lld", p->dstDevice, p->ByteCount);
@@ -359,7 +555,7 @@ pub extern "C" fn nvbit_at_cuda_event(
         | bindings::nvbit_api_cuda_t::API_CUDA_cuLaunchKernel => {
             let p: &mut bindings::cuLaunchKernel_params =
                 unsafe { &mut *(params as *mut bindings::cuLaunchKernel_params) };
-            dbg!(&p);
+            // dbg!(&p);
             // (bindings::cuMemcpyHtoD_v2_params *)params;
             // cuLaunchKernel_params *p = (cuLaunchKernel_params *)params;
 
@@ -387,7 +583,7 @@ pub extern "C" fn nvbit_at_cuda_event(
                         p.f,
                     );
                 }
-                dbg!(&nregs);
+                // dbg!(&nregs);
 
                 // CUDA_SAFECALL(
                 //     cuFuncGetAttribute(&nregs, CU_FUNC_ATTRIBUTE_NUM_REGS, p->f));
@@ -400,7 +596,7 @@ pub extern "C" fn nvbit_at_cuda_event(
                         p.f,
                     );
                 }
-                dbg!(&shmem_static_nbytes);
+                // dbg!(&shmem_static_nbytes);
 
                 // int shmem_static_nbytes;
                 // CUDA_SAFECALL(cuFuncGetAttribute(
@@ -414,7 +610,7 @@ pub extern "C" fn nvbit_at_cuda_event(
                         p.f,
                     );
                 }
-                dbg!(&binary_version);
+                // dbg!(&binary_version);
 
                 // int binary_version;
                 // CUDA_SAFECALL(cuFuncGetAttribute(&binary_version,
@@ -478,12 +674,139 @@ pub extern "C" fn nvbit_at_cuda_event(
     }
 }
 
+// static *const u64 total_dynamic_instr_counter = 0;
+// static &'static u64 total_dynamic_instr_counter; //  = 0;
+
+const CHANNEL_SIZE: u64 = 1u64 << 20;
+
+struct Stats {
+    // total_dynamic_instr_counter: *mut bindings::CUdeviceptr,
+    pchannel_dev: *mut ChannelDev,
+    pchannel_host: *mut ChannelHost,
+    ptotal_dynamic_instr_counter: *mut u64,
+    preported_dynamic_instr_counter: *mut u64,
+    pstop_report: *mut bool,
+}
+
+// static __managed__ ChannelDev channel_dev;
+// static ChannelHost channel_host;
+
+impl Stats {
+    pub fn new() -> Self {
+        // let mut devPtr: bindings::CUdeviceptr = std::ptr::null_mut::<u64>() as _;
+        // let mut devPtr: *mut u64 = std::ptr::null_mut::<u64>() as _;
+        // let total_dynamic_instr_counter: u64 = 0;
+        // let pinned: Pin<&mut u64> = Pin::new(&mut total_dynamic_instr_counter);
+        // // avoid dropping?
+        // std::mem::forget(pinned);
+        // // let mut total_dynamic_instr_counter: Box<u64> = Box::new(0);
+        // let mut devPtr: *mut u64 = &mut *total_dynamic_instr_counter as _;
+
+        // let pchannel_dev =
+        //     unsafe { cuda_malloc_unified::<u64>(1).expect("cuda malloc unified") };
+        let pchannel_dev =
+            unsafe { cuda_malloc_unified::<ChannelDev>(1).expect("cuda malloc unified") };
+
+        let pchannel_host = 
+            unsafe { cuda_malloc_unified::<ChannelHost>(1).expect("cuda malloc unified") };
+
+        // channel_host.init(0, CHANNEL_SIZE, pchannel_dev, NULL);
+        // channel_host.init(0, CHANNEL_SIZE, &channel_dev, NULL);
+
+        let ptotal_dynamic_instr_counter =
+            unsafe { cuda_malloc_unified::<u64>(1).expect("cuda malloc unified") };
+
+        let preported_dynamic_instr_counter =
+            unsafe { cuda_malloc_unified::<u64>(1).expect("cuda malloc unified") };
+
+        let pstop_report = unsafe { cuda_malloc_unified::<bool>(1).expect("cuda malloc unified") };
+
+        unsafe { *ptotal_dynamic_instr_counter = 0 };
+        unsafe { *preported_dynamic_instr_counter = 0 };
+        unsafe { *pstop_report = false };
+
+        // let mut devPtr: *mut u64 = std::ptr::null_mut::<u64>() as _;
+        // todo: run the cuda managed alloc here already
+        Self {
+            pchannel_dev,
+            pchannel_host,
+            ptotal_dynamic_instr_counter,
+            preported_dynamic_instr_counter,
+            pstop_report,
+            // total_dynamic_instr_counter: unsafe { &mut devPtr as _ },
+        }
+    }
+}
+
+unsafe impl Send for Stats {}
+unsafe impl Sync for Stats {}
+
+lazy_static! {
+    static ref stats: Stats = Stats::new();
+    // static ref total_dynamic_instr_counter: bindings::CUdeviceptr =
+        // std::ptr::null_mut::<u64>() as _;
+}
+
+pub unsafe fn cuda_malloc_unified<T>(count: usize) -> Result<*mut T> {
+    // CudaResult<UnifiedPointer<T>> {
+    let size = count.checked_mul(std::mem::size_of::<T>()).unwrap_or(0);
+    dbg!(&size);
+    if size == 0 {
+        panic!("InvalidMemoryAllocation");
+    }
+
+    let mut ptr: *mut libc::c_void = std::ptr::null_mut();
+    let result = unsafe {
+        bindings::cuMemAllocManaged(
+            &mut ptr as *mut *mut libc::c_void as *mut u64,
+            size,
+            bindings::CUmemAttach_flags_enum::CU_MEM_ATTACH_GLOBAL as u32,
+        )
+    };
+    if result != bindings::cudaError_enum::CUDA_SUCCESS {
+        panic!("CUDA ERROR: {:?}", result);
+    }
+    // .to_result()?;
+    Ok(ptr as *mut T)
+    // Ok(UnifiedPointer::wrap(ptr as *mut T))
+}
+
 #[no_mangle]
 #[inline(never)]
 // pub extern "C" fn nvbit_at_ctx_init(ctx: *mut CUctx_st) {
 pub extern "C" fn nvbit_at_ctx_init(ctx: CUcontext) {
-    // unsafe { say_hi() };
+    // ptr: DevicePointer<T>,
+    // if mem::size_of::<T>() == 0 {
+    //
+    // cudaMallocManaged((void**)&(elm->name), sizeof(char) * (strlen("hello") + 1) );
     println!("nvbit_at_ctx_init");
+
+    // pthread_create(&recv_thread, NULL, recv_thread_fun, NULL);
+
+
+    // std::ptr::NonNull::dangling().as_ptr() as *mut u64;
+
+    // let mut total_dynamic_instr_counter: Box<u64> = Box::new(0);
+    // let mut devPtr: *mut u64 = &mut *total_dynamic_instr_counter as _;
+    // let mut devPtrPtr: *mut *mut u64 = &mut devPtr as _;
+    // dbg!(unsafe { **devPtrPtr });
+    // dbg!(unsafe {*devPtr});
+
+    //unsafe {
+    //    // bindings::cudaMallocManaged((void**)&(elm->name), sizeof(char) * (strlen("hello") + 1) );
+    //    // let devPtr: *mut bindings::CUdeviceptr = &mut stats.total_dynamic_instr_counter as *mut _;
+    //    // let devPtr: *mut bindings::CUdeviceptr =
+    //    //     unsafe { &mut stats.total_dynamic_instr_counter as *mut _ };
+    //    //
+    //    // bindings::cuMemAllocManaged(
+    //    //     stats.total_dynamic_instr_counter as *mut bindings::CUdeviceptr,
+    //    //     std::mem::size_of::<u64>(),
+    //    //     0,
+    //    // );
+    //    *stats.total_dynamic_instr_counter = 0;
+    //    dbg!(*stats.total_dynamic_instr_counter);
+    //}
+    // unsafe { say_hi() };
     // unsafe { say_hi() };
     // dynamic loading does not work either
     // unsafe {
@@ -501,37 +824,47 @@ pub extern "C" fn nvbit_at_ctx_init(ctx: CUcontext) {
 #[inline(never)]
 // pub extern "C" fn nvbit_at_ctx_term(ctx: *mut CUctx_st) {
 pub extern "C" fn nvbit_at_ctx_term(ctx: CUcontext) {
+    println!("total_dynamic_instr_counter:");
+    // dbg!(stats.total_dynamic_instr_counter);
+    dbg!(unsafe { *stats.pstop_report });
+    dbg!(unsafe { *stats.ptotal_dynamic_instr_counter });
+    dbg!(unsafe { *stats.preported_dynamic_instr_counter });
     println!("nvbit_at_ctx_term");
 }
 
 // #[no_mangle]
-// pub extern "C" fn instrument_inst(
-//     pred: libc::c_int,
-//     opcode_id: libc::c_int,
-//     vpc: u32,
-//     is_mem: bool,
-//     addr: u64,
-//     width: i32,
-//     desReg: i32,
-//     srcReg1: i32,
-//     srcReg2: i32,
-//     srcReg3: i32,
-//     srcReg4: i32,
-//     srcReg5: i32,
-//     srcNum: i32,
-//     pchannel_dev: u64,
-//     ptotal_dynamic_instr_counter: u64,
-//     preported_dynamic_instr_counter: u64,
-//     pstop_report: u64,
-// ) {
-//     panic!("called");
+// #[inline(never)]
+
+// extern "C" {
+//     pub fn instrument_inst(
+//         pred: libc::c_int,
+//         opcode_id: libc::c_int,
+//         vpc: u32,
+//         is_mem: bool,
+//         addr: u64,
+//         width: i32,
+//         desReg: i32,
+//         srcReg1: i32,
+//         srcReg2: i32,
+//         srcReg3: i32,
+//         srcReg4: i32,
+//         srcReg5: i32,
+//         srcNum: i32,
+//         pchannel_dev: u64,
+//         ptotal_dynamic_instr_counter: u64,
+//         preported_dynamic_instr_counter: u64,
+//         pstop_report: u64,
+//     );
+// }
+// {
+// panic!("called");
 // }
 
-pub fn say_hi() {
-    // println!("about to die");
-    // unsafe { instrument_inst(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) }
-    // println!("survive");
-}
+// pub fn say_hi() {
+//     // println!("about to die");
+//     // unsafe { instrument_inst(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) }
+//     // println!("survive");
+// }
 
 // #[no_mangle]
 // pub unsafe extern "C" fn new_instrument_inst(
@@ -575,12 +908,35 @@ pub fn say_hi() {
 //     //     );
 // }
 
-// // mod external_symbols {
+// #[no_mangle]
+// #[inline(never)]
+// extern "C" pub fn instrument_inst(
+//     pred: libc::c_int,
+//     opcode_id: libc::c_int,
+//     vpc: u32,
+//     is_mem: bool,
+//     addr: u64,
+//     width: i32,
+//     desReg: i32,
+//     srcReg1: i32,
+//     srcReg2: i32,
+//     srcReg3: i32,
+//     srcReg4: i32,
+//     srcReg5: i32,
+//     srcNum: i32,
+//     pchannel_dev: u64,
+//     ptotal_dynamic_instr_counter: u64,
+//     preported_dynamic_instr_counter: u64,
+//     pstop_report: u64,
+// );
+
+// // // mod external_symbols {
 // extern "C" {
 //     // #[no_mangle]
 //     // pub fn say_hi();
 
-//     // #[no_mangle]
+//     #[no_mangle]
+//     #[inline(never)]
 //     pub fn instrument_inst(
 //         pred: libc::c_int,
 //         opcode_id: libc::c_int,
