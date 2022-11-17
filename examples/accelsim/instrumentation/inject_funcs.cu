@@ -20,6 +20,9 @@
 /*   /1* fuu *1/ */
 /* } */
 
+// this does not work :( the symbol is U and not T in nm
+/* extern "C" __attribute__((visibility("default"))) static __managed__ ChannelDev channel_dev; */
+
 // Instrumentation function that we want to inject, please note the use of
 // extern "C" __device__ __noinline__
 // To prevent "dead"-code elimination by the compiler.
@@ -79,9 +82,10 @@ extern "C" __device__ __noinline__ void instrument_inst(
 
   // first active lane pushes information on the channel
   if (first_laneid == laneid) {
-    /* printf("device: instrument_inst\n"); */
     ChannelDev *channel_dev = (ChannelDev *)pchannel_dev;
+    /* printf("device channel id: %d\n", channel_dev->dev_get_id()); */
     channel_dev->push(&ma, sizeof(inst_trace_t));
+    /* printf("device: pushed to channel worked\n"); */
     atomicAdd((unsigned long long *)ptotal_dynamic_instr_counter, 1);
     atomicAdd((unsigned long long *)preported_dynamic_instr_counter, 1);
   }

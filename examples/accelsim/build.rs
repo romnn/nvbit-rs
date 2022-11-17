@@ -13,20 +13,64 @@ pub fn manifest_path() -> PathBuf {
         .expect("canonicalize path")
 }
 
+fn generate_bindings() {
+    for (key, value) in std::env::vars() {
+        // println!("cargo::warning={key}: {value}");
+        if key.to_lowercase().contains("nvbit") || key.to_lowercase().contains("dep_") {
+            println!("cargo::warning={key}: {value}");
+        }
+    }
+    let mut builder = bindgen::Builder::default()
+        .clang_args([
+            "-x",
+            // "cu",
+            "c++",
+            "-std=c++11",
+            &format!("-I{}", std::env::var("DEP_NVBIT_INCLUDE").unwrap()),
+        ])
+        // avoid difficulties with C++ std::vector for example
+        // .opaque_type("std::.*")
+        // .blocklist_type("std::.*")
+        // .allowlist_type("ChannelDev")
+        // .allowlist_type("ChannelHost")
+        // .generate_comments(false)
+        // .rustified_enum("*")
+        // .prepend_enum_name(false)
+        // .derive_eq(true)
+        // .derive_default(true)
+        // .derive_hash(true)
+        // .derive_ord(true)
+        // .size_t_is_usize(true)
+        // .default_enum_style(EnumVariation::Rust {
+        //     non_exhaustive: false,
+        // })
+        .header("instrumentation/common.h");
+
+    let bindings = builder.generate().expect("generating bindings");
+    bindings
+        .write_to_file(output_path().join("bindings.rs"))
+        .expect("writing bindings failed");
+}
+
 fn main() {
     // rerun if the build script changes
     println!("cargo:rerun-if-changed=build.rs");
 
     // rerun if the instrumentation changes
     println!("cargo:rerun-if-changed=instrumentation");
-    println!("cargo:rerun-if-changed=instrumentation/inject_funcs.cu");
+
+    generate_bindings();
 
     if true {
         // compile the injection functions
         let tool_obj = output_path().join("tool.o");
         let result = std::process::Command::new("nvcc")
             .args([
-                "-I../../nvbit-sys/nvbit_release/core",
+                // "-I../../nvbit-sys/nvbit_release/core",
+                &format!("-I{}", std::env::var("DEP_NVBIT_INCLUDE").unwrap()),
+                &format!("-I{}", manifest_path().join("instrumentation").display()),
+                // "-G",
+                // "-lineinfo",
                 "-Xcompiler",
                 "-fPIC",
                 "-dc",
@@ -34,7 +78,7 @@ fn main() {
                 "instrumentation/tool.cu",
                 "-o",
                 // instr_obj.as_os_str().to_str().unwrap(), // .display().as_str(),
-                tool_obj.to_string_lossy().to_string().as_str(), // .display().as_str(),
+                &tool_obj.to_string_lossy(),
             ])
             .output()
             .expect("nvcc failed");
@@ -45,9 +89,11 @@ fn main() {
         let inject_obj = output_path().join("inject_funcs.o");
         let result = std::process::Command::new("nvcc")
             .args([
-                // "-D_FORCE_INLINES",
-                "-I../../nvbit-sys/nvbit_release/core",
+                &format!("-I{}", std::env::var("DEP_NVBIT_INCLUDE").unwrap()),
+                // "-I../../nvbit-sys/nvbit_release/core",
                 // "-rdc=true",
+                // "-G",
+                // "-lineinfo",
                 "-maxrregcount=24",
                 "-Xptxas",
                 "-astoolspatch",
@@ -60,7 +106,7 @@ fn main() {
                 "instrumentation/inject_funcs.cu",
                 "-o",
                 // instr_obj.as_os_str().to_str().unwrap(), // .display().as_str(),
-                inject_obj.to_string_lossy().to_string().as_str(), // .display().as_str(),
+                &inject_obj.to_string_lossy(),
             ])
             .output()
             .expect("nvcc failed");
@@ -76,6 +122,7 @@ fn main() {
                 // "-L../nvbit_release/core",
                 // "-rdc=true",
                 // "-lcudart",
+                &format!("-I{}", std::env::var("DEP_NVBIT_INCLUDE").unwrap()),
                 "-Xcompiler",
                 "-fPIC",
                 "-dlink",
@@ -109,10 +156,10 @@ fn main() {
                     .args([
                         // "r",
                         "cru",
-                        lib.to_string_lossy().to_string().as_str(),
-                        tool_obj.to_string_lossy().to_string().as_str(),
-                        inject_obj.to_string_lossy().to_string().as_str(),
-                        dev_obj_link.to_string_lossy().to_string().as_str(),
+                        &lib.to_string_lossy(),
+                        &tool_obj.to_string_lossy(),
+                        &inject_obj.to_string_lossy(),
+                        &dev_obj_link.to_string_lossy(),
                     ])
                     .output()
                     .expect("linking failed");
@@ -139,14 +186,14 @@ fn main() {
                 let lib = output_path().join("libinstrumentation.so");
                 let result = std::process::Command::new("clang++")
                     .args([
-                        tool_obj.to_string_lossy().to_string().as_str(),
-                        inject_obj.to_string_lossy().to_string().as_str(),
-                        dev_obj_link.to_string_lossy().to_string().as_str(),
+                        &tool_obj.to_string_lossy(),
+                        &inject_obj.to_string_lossy(),
+                        &dev_obj_link.to_string_lossy(),
                         "-lcuda",
                         "-lcudart",
                         "-shared",
                         "-o",
-                        lib.to_string_lossy().to_string().as_str(),
+                        &lib.to_string_lossy(),
                         // "tracer_tool.so",
                         // "-D_FORCE_INLINES",
                         // "-O3",

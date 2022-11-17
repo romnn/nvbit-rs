@@ -1,61 +1,24 @@
 #![allow(warnings)]
 
+mod buffer;
+mod instrument_inst;
+
 use anyhow::Result;
 use lazy_static::lazy_static;
 use libc;
 use libloading::{Library, Symbol};
-use nvbit_sys::bindings::{CUcontext, CUfunction};
-use nvbit_sys::*;
+use nvbit_sys::bindings::{self, CUcontext, CUfunction};
+use nvbit_sys::nvbit::*;
+use nvbit_sys::utils::*;
 use std::collections::{HashMap, HashSet};
 use std::ffi;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
-// todo: set up the channel
-// /* Channel used to communicate from GPU to CPU receiving thread */
-// #define CHANNEL_SIZE (1l << 20)
-// static __managed__ ChannelDev channel_dev;
-// static ChannelHost channel_host;
-
-// global control variables for this tool
-// uint32_t instr_begin_interval = 0;
-// uint32_t instr_end_interval = UINT32_MAX;
-// int verbose = 0;
-// int enable_compress = 1;
-// int print_core_id = 0;
-// int exclude_pred_off = 1;
-// int active_from_start = 1;
-// /* used to select region of interest when active from start is 0 */
-// bool active_region = true;
-
-// /* Should we terminate the program once we are done tracing? */
-// int terminate_after_limit_number_of_kernels_reached = 0;
-// int user_defined_folders = 0;
-
-// the stats we want to output in the end
-// /* opcode to id map and reverse map  */
-// std::map<std::string, int> opcode_to_id_map;
-// std::map<int, std::string> id_to_opcode_map;
-
-// std::string cwd = getcwd(NULL,0);
-// std::string traces_location = cwd + "/traces/";
-// std::string kernelslist_location = cwd + "/traces/kernelslist";
-// std::string stats_location = cwd + "/traces/stats.csv";
-// todo: how can we get the inject funcs into our sys crate??
-
-// this must be a c function so that nvbit will call us
-#[no_mangle]
-#[inline(never)]
-pub extern "C" fn nvbit_at_init() {
-    // init();
-    // println!("{:?}", rust_nvbit_get_related_functions());
-    // println!("it works");
+mod common {
+    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 
-// todo: use static vars for all those globals
-/* std::unordered_set<CUfunction> already_instrumented; */
-
-// todo: make this sync
 #[derive(Hash, Eq, PartialEq, Clone)]
 struct CUfunctionKey {
     // inner: Arc<CUfunction>,
@@ -70,99 +33,44 @@ struct CUfunctionKey {
 unsafe impl Send for CUfunctionKey {}
 
 lazy_static! {
-    // static ref ALREADY_INSTRUMENTED: Mutex<HashSet<TestCUfunction>> = Mutex::new(HashSet::new());
     static ref ALREADY_INSTRUMENTED: Mutex<HashSet<CUfunctionKey>> = Mutex::new(HashSet::new());
 }
 
-#[derive(Debug, Default, Clone)]
-struct InstrumentInstArgs {
-    opcode_id: libc::c_int,
-    vpc: u32,
-    is_mem: bool,
-    addr: u64,
-    width: i32,
-    desReg: i32,
-    srcReg1: i32,
-    srcReg2: i32,
-    srcReg3: i32,
-    srcReg4: i32,
-    srcReg5: i32,
-    srcNum: i32,
-    pchannel_dev: u64,
-    ptotal_dynamic_instr_counter: u64,
-    preported_dynamic_instr_counter: u64,
-    pstop_report: u64,
-}
+static mut kernelid: u64 = 1;
+static mut first_call: bool = true;
+static mut terminate_after_limit_number_of_kernels_reached: bool = false;
 
-impl InstrumentInstArgs {
-    pub unsafe fn instrument(&self, instr: *const Instr) {
-        bindings::nvbit_add_call_arg_guard_pred_val(instr, false);
-        bindings::nvbit_add_call_arg_const_val32(
-            instr,
-            self.opcode_id.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val32(instr, self.vpc, false);
-        bindings::nvbit_add_call_arg_const_val32(instr, self.is_mem as u32, false);
-        bindings::nvbit_add_call_arg_mref_addr64(
-            instr,
-            self.addr.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val32(
-            instr,
-            self.width.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val32(
-            instr,
-            self.desReg.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val32(
-            instr,
-            self.srcReg1.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val32(
-            instr,
-            self.srcReg2.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val32(
-            instr,
-            self.srcReg3.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val32(
-            instr,
-            self.srcReg4.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val32(
-            instr,
-            self.srcReg5.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val32(
-            instr,
-            self.srcNum.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val64(instr, self.pchannel_dev, false);
-        bindings::nvbit_add_call_arg_const_val64(instr, self.ptotal_dynamic_instr_counter, false);
-        bindings::nvbit_add_call_arg_const_val64(
-            instr,
-            self.preported_dynamic_instr_counter,
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val64(instr, self.pstop_report, false);
-    }
+static mut recv_thread_started: bool = false;
+static mut recv_thread_receiving: bool = false;
+static mut recv_thread: Option<std::thread::JoinHandle<()>> = None;
+
+static mut instr_begin_interval: u32 = 0;
+static mut instr_end_interval: u32 = u32::MAX;
+static mut active_from_start: bool = true;
+// used to select region of interest when active from start is 0
+static mut active_region: bool = true;
+static mut skip_flag: bool = false;
+
+// 0 means start from the begging kernel
+static mut dynamic_kernel_limit_start: u64 = 0;
+// 0 means no limit
+static mut dynamic_kernel_limit_end: u64 = 0;
+
+#[no_mangle]
+#[inline(never)]
+pub extern "C" fn nvbit_at_init() {
+    println!("nvbit_at_init");
 }
 
 // fn instrument_function_if_needed(ctx: CUcontext , func: CUfunction) {
 // fn instrument_function_if_needed(ctx: *mut bindings::CUctx_st, func: *mut bindings::CUfunc_st) {
 fn instrument_function_if_needed(ctx: CUcontext, func: CUfunction) {
+    println!("instrument_function_if_needed");
+
+    // test getting the id
+    // let id = unsafe { Pin::new_unchecked(&mut *stats.pchannel_dev as &mut ChannelDev) }.get_id();
+    // println!("dev channel id: {}", id);
+
     // let testctx = TestCUcontext { inner: ctx };
     // let testfunc = TestCUfunction { inner: func };
     let related_functions = unsafe { rust_nvbit_get_related_functions(ctx, func) };
@@ -173,11 +81,11 @@ fn instrument_function_if_needed(ctx: CUcontext, func: CUfunction) {
     // std::unordered_set<CUfunction> already_instrumented;
 
     // todo: perform this in the safe wrapper
-    let mut related_functions: Vec<CUfunctionShim> =
-        related_functions.into_iter().copied().collect();
+    let mut related_functions: Vec<&CUfunctionShim> = related_functions.into_iter().collect();
 
-    related_functions.push(unsafe { CUfunctionShim::wrap(func) });
-    // println!("number of related functions: {:?}", related_functions.len());
+    let current_func = unsafe { CUfunctionShim::wrap(func) };
+    related_functions.push(unsafe { &current_func });
+    println!("number of related functions: {:?}", related_functions.len());
 
     for f in &mut related_functions {
         // "recording" function was instrumented,
@@ -220,20 +128,21 @@ fn instrument_function_if_needed(ctx: CUcontext, func: CUfunction) {
         // println!("instructions {:#?} ", instrs);
 
         let mut instr_count: u32 = 0;
+
+        // iterate on all the static instructions in the function
         for instr in instrs.iter() {
-            // continue;
-            // iterate on all the static instructions in the function
-            // if count < instr_begin_interval || count >= instr_end_interval {
-            //     count += 1;
-            //     continue;
-            // }
+            if instr_count < unsafe { instr_begin_interval }
+                || instr_count >= unsafe { instr_end_interval }
+            {
+                instr_count += 1;
+                continue;
+            }
 
             // unsafe { instr.as_mut_ref().printDecoded() };
 
             // std::map<std::string, int> opcode_to_id_map;
             let mut opcode_to_id_map: HashMap<String, usize> = HashMap::new();
-
-            // if opcode_to_id_map.find(instr->getOpcode()) == opcode_to_id_map.end() {
+            let mut id_to_opcode_map: HashMap<usize, String> = HashMap::new();
 
             let opcode: String = {
                 let op = unsafe { instr.as_mut_ref().getOpcode() };
@@ -243,14 +152,12 @@ fn instrument_function_if_needed(ctx: CUcontext, func: CUfunction) {
             if !opcode_to_id_map.contains_key(&opcode) {
                 let opcode_id = opcode_to_id_map.len();
                 opcode_to_id_map.insert(opcode.clone(), opcode_id);
-                // id_to_opcode_map[opcode_id] = instr->getOpcode();
+                id_to_opcode_map.insert(opcode_id, opcode.clone());
             }
 
-            // int opcode_id = opcode_to_id_map[instr->getOpcode()];
             let opcode_id = opcode_to_id_map[&opcode];
 
-            // insert call to the instrumentation function with its arguments */
-            // *const ::std::os::raw::c_char
+            // insert call to the instrumentation function
             unsafe {
                 bindings::nvbit_insert_call(
                     unsafe { instr.as_ptr() },
@@ -258,7 +165,7 @@ fn instrument_function_if_needed(ctx: CUcontext, func: CUfunction) {
                     bindings::ipoint_t::IPOINT_BEFORE,
                 );
             }
-            let mut inst_args = InstrumentInstArgs::default();
+            let mut inst_args = instrument_inst::InstrumentInstArgs::default();
 
             // pass predicate value */
             // unsafe {
@@ -282,10 +189,11 @@ fn instrument_function_if_needed(ctx: CUcontext, func: CUfunction) {
             //     bindings::nvbit_add_call_arg_const_val32(unsafe { instr.as_ptr() }, offset, false);
             // }
 
-            const MAX_SRC: usize = 5;
-            // check all operands. For now, we ignore constant, TEX, predicates and
-            // unified registers. We only report vector regisers
-            let mut src_oprd: [libc::c_int; MAX_SRC] = [-1; MAX_SRC];
+            // check all operands.
+            // For now, we ignore constant, TEX, predicates and unified registers.
+            // We only report vector registers
+            let mut src_oprd: [libc::c_int; common::MAX_SRC as usize] =
+                [-1; common::MAX_SRC as usize];
             let mut srcNum: usize = 0;
             let mut dst_oprd: libc::c_int = -1;
             let mut mem_oper_idx: libc::c_int = -1;
@@ -294,7 +202,6 @@ fn instrument_function_if_needed(ctx: CUcontext, func: CUfunction) {
             // (e.g. store and RED)
 
             let num_operands = unsafe { instr.as_mut_ref().getNumOperands() };
-
             if num_operands > 0 {
                 let first_operand = unsafe { *instr.as_mut_ref().getOperand(0) };
                 match first_operand.type_ {
@@ -313,18 +220,14 @@ fn instrument_function_if_needed(ctx: CUcontext, func: CUfunction) {
             }
 
             // find src regs and mem
-            // dbg!(&num_operands);
-            // dbg!(&unsafe { instr.as_mut_ref().getNumOperands() });
-            for i in 1..(MAX_SRC.min(num_operands as usize)) {
-                // dbg!(&i);
-                // dbg!(i as i32);
-                assert!(i < MAX_SRC);
-                assert!(i < num_operands as usize);
+            for i in 1..(common::MAX_SRC.min(num_operands as u32)) {
+                assert!(i < common::MAX_SRC);
+                assert!(i < num_operands as u32);
                 let op = unsafe { *instr.as_mut_ref().getOperand(i as i32) };
                 match op.type_ {
                     bindings::InstrType_OperandType::MREF => {
                         // mem is found
-                        assert!(srcNum < MAX_SRC);
+                        assert!(srcNum < common::MAX_SRC as usize);
                         src_oprd[srcNum] = unsafe { op.u.mref.ra_num };
                         srcNum += 1;
                         // TODO: handle LDGSTS with two mem refs
@@ -333,7 +236,7 @@ fn instrument_function_if_needed(ctx: CUcontext, func: CUfunction) {
                     }
                     bindings::InstrType_OperandType::REG => {
                         // reg is found
-                        assert!(srcNum < MAX_SRC);
+                        assert!(srcNum < common::MAX_SRC as usize);
                         src_oprd[srcNum] = unsafe { op.u.reg.num };
                         srcNum += 1;
                     }
@@ -372,8 +275,8 @@ fn instrument_function_if_needed(ctx: CUcontext, func: CUfunction) {
                 // }
             }
 
-            inst_args.desReg = dst_oprd;
             // reg info
+            inst_args.desReg = dst_oprd;
             // unsafe {
             //     bindings::nvbit_add_call_arg_const_val32(
             //         unsafe { instr.as_ptr() },
@@ -387,6 +290,7 @@ fn instrument_function_if_needed(ctx: CUcontext, func: CUfunction) {
             inst_args.srcReg3 = src_oprd[2];
             inst_args.srcReg4 = src_oprd[3];
             inst_args.srcReg5 = src_oprd[4];
+            inst_args.srcNum = srcNum as i32;
 
             // for i in 0..srcNum {
             //     unsafe {
@@ -404,7 +308,6 @@ fn instrument_function_if_needed(ctx: CUcontext, func: CUfunction) {
             //     }
             // }
 
-            inst_args.srcNum = srcNum as i32;
             // unsafe {
             //     bindings::nvbit_add_call_arg_const_val32(
             //         unsafe { instr.as_ptr() },
@@ -414,6 +317,9 @@ fn instrument_function_if_needed(ctx: CUcontext, func: CUfunction) {
             // }
 
             // add pointer to channel_dev and other counters
+
+            // let pchannel_dev = unsafe { &mut channel_dev as *mut ChannelDev };
+            inst_args.pchannel_dev = (stats.pchannel_dev as *mut libc::c_void) as u64;
 
             inst_args.ptotal_dynamic_instr_counter =
                 (stats.ptotal_dynamic_instr_counter as *mut libc::c_void) as u64;
@@ -483,13 +389,15 @@ pub extern "C" fn nvbit_at_cuda_event(
     // unsafe { say_hi() };
     // println!("is exit: {:?}", is_exit);
     let event_name = unsafe { ffi::CStr::from_ptr(event_name).to_string_lossy() };
-    println!("name: {:?} (is_exit = {})", event_name, is_exit);
+    // println!("name: {:?} (is_exit = {})", event_name, is_exit);
 
-    // if (skip_flag)
-    // return;
+    if unsafe { skip_flag } {
+        return;
+    }
 
-    // if (first_call == true) {
-    //     first_call = false;
+    if unsafe { first_call } {
+        unsafe { first_call = false }
+    }
 
     // if (mkdir("traces", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
     //   if (errno == EEXIST) {
@@ -502,12 +410,13 @@ pub extern "C" fn nvbit_at_cuda_event(
     //   }
     // }
 
-    // if (active_from_start && !dynamic_kernel_limit_start || dynamic_kernel_limit_start == 1)
-    //   active_region = true;
-    // else {
-    //   if (active_from_start)
-    //     active_region = false;
-    // }
+    if unsafe { active_from_start } && unsafe { dynamic_kernel_limit_start } <= 1 {
+        unsafe { active_region = true }
+    } else {
+        if unsafe { active_from_start } {
+            unsafe { active_region = false }
+        }
+    }
 
     // if(user_defined_folders == 1)
     // {
@@ -560,20 +469,20 @@ pub extern "C" fn nvbit_at_cuda_event(
             // cuLaunchKernel_params *p = (cuLaunchKernel_params *)params;
 
             if !is_exit {
-                // if active_from_start
-                //     && dynamic_kernel_limit_start
-                //     && kernelid == dynamic_kernel_limit_start
-                // {
-                //     active_region = true;
-                // }
+                if unsafe { active_from_start }
+                    && unsafe { dynamic_kernel_limit_start } > 0
+                    && unsafe { kernelid } == unsafe { dynamic_kernel_limit_start }
+                {
+                    unsafe { active_region = true }
+                }
 
-                // if terminate_after_limit_number_of_kernels_reached
-                //     && dynamic_kernel_limit_end != 0
-                //     && kernelid > dynamic_kernel_limit_end
-                // {
-                //     // exit(0);
-                //     panic!("i decided to terminate");
-                // }
+                if unsafe { terminate_after_limit_number_of_kernels_reached }
+                    && unsafe { dynamic_kernel_limit_end } > 0
+                    && unsafe { kernelid } > unsafe { dynamic_kernel_limit_end }
+                {
+                    println!("i decided to terminate");
+                    std::process::exit(0);
+                }
 
                 let mut nregs: ffi::c_int = 0;
                 unsafe {
@@ -619,18 +528,18 @@ pub extern "C" fn nvbit_at_cuda_event(
                 instrument_function_if_needed(ctx, p.f);
 
                 // nvbit_enable_instrumented(ctx, p.f, true, true);
-                unsafe {
-                    bindings::nvbit_enable_instrumented(ctx, p.f, true, true);
-                    // bindings::nvbit_enable_instrumented(ctx.as_mut_ptr(), p.f, true, true);
-                }
 
-                // if (active_region) {
-                //   nvbit_enable_instrumented(ctx, p->f, true);
-                //   stop_report = false;
-                // } else {
-                //   nvbit_enable_instrumented(ctx, p->f, false);
-                //   stop_report = true;
-                // }
+                if unsafe { active_region } {
+                    unsafe {
+                        bindings::nvbit_enable_instrumented(ctx, p.f, true, true);
+                    }
+                    unsafe { *stats.pstop_report = false };
+                } else {
+                    unsafe {
+                        bindings::nvbit_enable_instrumented(ctx, p.f, false, true);
+                    }
+                    unsafe { *stats.pstop_report = true };
+                }
 
                 // char buffer[1024];
                 // sprintf(buffer, std::string(traces_location+"/kernel-%d.trace").c_str(), kernelid);
@@ -666,6 +575,44 @@ pub extern "C" fn nvbit_at_cuda_event(
                 //           "[reg_srcs] mem_width [adrrescompress?] [mem_addresses]\n");
                 //   fprintf(resultsFile, "\n");
                 // }
+
+                unsafe { kernelid += 1 }
+                unsafe { recv_thread_receiving = true };
+            } else {
+                // is exit
+                unsafe { skip_flag = true };
+                // make sure current kernel is completed
+                unsafe { common::flush_channel(stats.pchannel_dev as *mut libc::c_void) };
+
+                unsafe { skip_flag = false };
+
+                while unsafe { recv_thread_receiving } {
+                    // why do we need this
+                    unsafe {
+                        libc::sched_yield();
+                    }
+                }
+
+                // if !stop_report {
+                //     fclose(resultsFile);
+                // }
+
+                if unsafe { active_from_start }
+                    && unsafe { dynamic_kernel_limit_end } > 0
+                    && unsafe { kernelid } > unsafe { dynamic_kernel_limit_end }
+                {
+                    unsafe { active_region = false }
+                }
+            }
+        }
+        bindings::nvbit_api_cuda_t::API_CUDA_cuProfilerStart => {
+            if is_exit && !unsafe { active_from_start } {
+                unsafe { active_region = true }
+            }
+        }
+        bindings::nvbit_api_cuda_t::API_CUDA_cuProfilerStop => {
+            if is_exit && !unsafe { active_from_start } {
+                unsafe { active_region = false }
             }
         }
         _ => {
@@ -677,21 +624,28 @@ pub extern "C" fn nvbit_at_cuda_event(
 // static *const u64 total_dynamic_instr_counter = 0;
 // static &'static u64 total_dynamic_instr_counter; //  = 0;
 
-const CHANNEL_SIZE: u64 = 1u64 << 20;
+// 1 MiB = 2**20
+// const CHANNEL_SIZE: i32 = 1 << 20;
+const CHANNEL_SIZE: u64 = 1 << 10;
 
+// struct Stats<'a> {
 struct Stats {
     // total_dynamic_instr_counter: *mut bindings::CUdeviceptr,
     pchannel_dev: *mut ChannelDev,
-    pchannel_host: *mut ChannelHost,
+    // pchannel_host: Pin<&'a mut ChannelHost>,
+    channel_host: Mutex<cxx::UniquePtr<ChannelHost>>,
     ptotal_dynamic_instr_counter: *mut u64,
     preported_dynamic_instr_counter: *mut u64,
     pstop_report: *mut bool,
 }
 
-// static __managed__ ChannelDev channel_dev;
-// static ChannelHost channel_host;
-
+// impl<'a> Stats<'a> {
 impl Stats {
+    #[inline(never)]
+    pub fn init(&self) {
+        println!("stats are ready");
+    }
+
     pub fn new() -> Self {
         // let mut devPtr: bindings::CUdeviceptr = std::ptr::null_mut::<u64>() as _;
         // let mut devPtr: *mut u64 = std::ptr::null_mut::<u64>() as _;
@@ -702,13 +656,21 @@ impl Stats {
         // // let mut total_dynamic_instr_counter: Box<u64> = Box::new(0);
         // let mut devPtr: *mut u64 = &mut *total_dynamic_instr_counter as _;
 
+        let pchannel_dev = unsafe { new_managed_dev_channel() };
+
         // let pchannel_dev =
         //     unsafe { cuda_malloc_unified::<u64>(1).expect("cuda malloc unified") };
-        let pchannel_dev =
-            unsafe { cuda_malloc_unified::<ChannelDev>(1).expect("cuda malloc unified") };
+        // panic!("size of channel dev: {}", dev_channel_size());
 
-        let pchannel_host = 
-            unsafe { cuda_malloc_unified::<ChannelHost>(1).expect("cuda malloc unified") };
+        // let pchannel_dev =
+        //     unsafe { cuda_malloc_unified::<ChannelDev>(1).expect("cuda malloc unified") };
+
+        // panic!("size of channel dev: {}", std::mem::size_of(pchannel_dev.as_ref().unwrap()));
+
+        // let pchannel_dev = unsafe { &mut channel_dev as *mut ChannelDev };
+        let mut channel_host = unsafe { new_host_channel(42, CHANNEL_SIZE as i32, pchannel_dev) };
+
+        // pchannel_dev should be initialized now???
 
         // channel_host.init(0, CHANNEL_SIZE, pchannel_dev, NULL);
         // channel_host.init(0, CHANNEL_SIZE, &channel_dev, NULL);
@@ -727,9 +689,11 @@ impl Stats {
 
         // let mut devPtr: *mut u64 = std::ptr::null_mut::<u64>() as _;
         // todo: run the cuda managed alloc here already
+
+        // let pchannel_host = pchannel_host.pin_mut();
         Self {
             pchannel_dev,
-            pchannel_host,
+            channel_host: Mutex::new(channel_host),
             ptotal_dynamic_instr_counter,
             preported_dynamic_instr_counter,
             pstop_report,
@@ -738,11 +702,14 @@ impl Stats {
     }
 }
 
+// unsafe impl Send for Stats<'_> {}
 unsafe impl Send for Stats {}
+// unsafe impl Sync for Stats<'_> {}
 unsafe impl Sync for Stats {}
 
 lazy_static! {
     static ref stats: Stats = Stats::new();
+    // static ref stats: Stats<'static> = Stats::new();
     // static ref total_dynamic_instr_counter: bindings::CUdeviceptr =
         // std::ptr::null_mut::<u64>() as _;
 }
@@ -771,18 +738,202 @@ pub unsafe fn cuda_malloc_unified<T>(count: usize) -> Result<*mut T> {
     // Ok(UnifiedPointer::wrap(ptr as *mut T))
 }
 
+fn read_channel() {
+    println!("read channel thread started");
+
+    println!(
+        "creating a buffer of size {} ({} MiB)",
+        CHANNEL_SIZE as usize,
+        CHANNEL_SIZE as f32 / 1024.0f32.powi(2)
+    );
+    // let mut recv_buffer = buffer::Buffer::with_size(CHANNEL_SIZE as usize);
+    let mut recv_buffer = buffer::alloc_box_buffer(CHANNEL_SIZE as usize);
+    println!("{:02X?}", &recv_buffer[0..10]);
+    println!(
+        "{:02X?}",
+        &recv_buffer[(CHANNEL_SIZE as usize - 10)..CHANNEL_SIZE as usize]
+    );
+    // let recv_buffer_ptr =
+    // std::mem::forget(recv_buffer);
+
+    // let recv_buffer: [*mut libc::c_void; CHANNEL_SIZE as usize] =
+    //     [std::ptr::null_mut() as *mut libc::c_void; CHANNEL_SIZE as usize];
+
+    let packet_size = std::mem::size_of::<common::inst_trace_t>();
+    let mut packet_count = 0;
+
+    while unsafe { recv_thread_started } {
+        // println!("receiving");
+        // let num_recv_bytes: u32 = 0;
+        // while (recv_thread_receiving &&
+        let num_recv_bytes = unsafe {
+            stats.channel_host.lock().unwrap().pin_mut().recv(
+                recv_buffer.as_mut_ptr() as *mut c_void,
+                // *recv_buffer.as_mut_ptr() as *mut c_void,
+                CHANNEL_SIZE as u32,
+            )
+        };
+        if unsafe { recv_thread_receiving } && num_recv_bytes > 0 {
+            // println!("received {} bytes", num_recv_bytes);
+            let mut num_processed_bytes: usize = 0;
+            while num_processed_bytes < num_recv_bytes as usize {
+                // let ma: &mut common::inst_trace_t = unsafe {
+                let packet_bytes =
+                    &recv_buffer[num_processed_bytes..num_processed_bytes + packet_size];
+                // println!("{:02X?}", packet_bytes);
+
+                assert_eq!(
+                    std::mem::size_of::<common::inst_trace_t>(),
+                    packet_bytes.len()
+                );
+                let ma: common::inst_trace_t = unsafe {
+                    std::ptr::read(packet_bytes.as_ptr() as *const _)
+                    // recv_buffer[num_processed_bytes]
+                    // &mut recv_buffer[num_processed_bytes as *mut common::inst_trace_t)
+                    // recv_buffer[num_processed_bytes] as *mut common::inst_trace_t
+                    // recv_buffer[num_processed_bytes] as *mut common::inst_trace_t
+                };
+                println!("received from channel: {:#?}", &ma);
+
+                // when we get this cta_id_x it means the kernel has completed
+                if (ma.cta_id_x == -1) {
+                    unsafe { recv_thread_receiving = false };
+                    break;
+                }
+
+                // inst_trace_t *ma = (inst_trace_t *)&recv_buffer[num_processed_bytes];
+                println!("size of common::inst_trace_t: {}", packet_size);
+                num_processed_bytes += packet_size;
+                packet_count += 1;
+            }
+        }
+    }
+    println!("received {} packets", packet_count);
+    // todo: currently our buffer is mem::forget so we must free here
+}
+
+// void *recv_thread_fun(void *) {
+// void *recv_thread_fun(void *) {
+//   char *recv_buffer = (char *)malloc(CHANNEL_SIZE);
+
+//   while (recv_thread_started) {
+//     uint32_t num_recv_bytes = 0;
+//     if (recv_thread_receiving &&
+//         (num_recv_bytes = channel_host.recv(recv_buffer, CHANNEL_SIZE)) > 0) {
+//       uint32_t num_processed_bytes = 0;
+//       while (num_processed_bytes < num_recv_bytes) {
+//         inst_trace_t *ma = (inst_trace_t *)&recv_buffer[num_processed_bytes];
+
+//         // when we get this cta_id_x it means the kernel has completed
+//         if (ma->cta_id_x == -1) {
+//           recv_thread_receiving = false;
+//           break;
+//         }
+
+//         fprintf(resultsFile, "%d ", ma->cta_id_x);
+//         fprintf(resultsFile, "%d ", ma->cta_id_y);
+//         fprintf(resultsFile, "%d ", ma->cta_id_z);
+//         fprintf(resultsFile, "%d ", ma->warpid_tb);
+//         if (print_core_id) {
+//           fprintf(resultsFile, "%d ", ma->sm_id);
+//           fprintf(resultsFile, "%d ", ma->warpid_sm);
+//         }
+//         fprintf(resultsFile, "%04x ", ma->vpc); // Print the virtual PC
+//         fprintf(resultsFile, "%08x ", ma->active_mask & ma->predicate_mask);
+//         if (ma->GPRDst >= 0) {
+//           fprintf(resultsFile, "1 ");
+//           fprintf(resultsFile, "R%d ", ma->GPRDst);
+//         } else
+//           fprintf(resultsFile, "0 ");
+
+//         // Print the opcode.
+//         fprintf(resultsFile, "%s ", id_to_opcode_map[ma->opcode_id].c_str());
+//         unsigned src_count = 0;
+//         for (int s = 0; s < MAX_SRC; s++) // GPR srcs count.
+//           if (ma->GPRSrcs[s] >= 0)
+//             src_count++;
+//         fprintf(resultsFile, "%d ", src_count);
+
+//         for (int s = 0; s < MAX_SRC; s++) // GPR srcs.
+//           if (ma->GPRSrcs[s] >= 0)
+//             fprintf(resultsFile, "R%d ", ma->GPRSrcs[s]);
+
+//         // print addresses
+//         std::bitset<32> mask(ma->active_mask & ma->predicate_mask);
+//         if (ma->is_mem) {
+//           std::istringstream iss(id_to_opcode_map[ma->opcode_id]);
+//           std::vector<std::string> tokens;
+//           std::string token;
+//           while (std::getline(iss, token, '.')) {
+//             if (!token.empty())
+//               tokens.push_back(token);
+//           }
+//           fprintf(resultsFile, "%d ", get_datawidth_from_opcode(tokens));
+
+//           bool base_stride_success = false;
+//           uint64_t base_addr = 0;
+//           int stride = 0;
+//           std::vector<long long> deltas;
+
+//           if (enable_compress) {
+//             // try base+stride format
+//             base_stride_success =
+//                 base_stride_compress(ma->addrs, mask, base_addr, stride);
+//             if (!base_stride_success) {
+//               // if base+stride fails, try base+delta format
+//               base_delta_compress(ma->addrs, mask, base_addr, deltas);
+//             }
+//           }
+
+//           if (base_stride_success && enable_compress) {
+//             // base + stride format
+//             fprintf(resultsFile, "%u 0x%llx %d ", address_format::base_stride,
+//                     base_addr, stride);
+//           } else if (!base_stride_success && enable_compress) {
+//             // base + delta format
+//             fprintf(resultsFile, "%u 0x%llx ", address_format::base_delta,
+//                     base_addr);
+//             for (int s = 0; s < deltas.size(); s++) {
+//               fprintf(resultsFile, "%lld ", deltas[s]);
+//             }
+//           } else {
+//             // list all the addresses
+//             fprintf(resultsFile, "%u ", address_format::list_all);
+//             for (int s = 0; s < 32; s++) {
+//               if (mask.test(s))
+//                 fprintf(resultsFile, "0x%016lx ", ma->addrs[s]);
+//             }
+//           }
+//         } else {
+//           fprintf(resultsFile, "0 ");
+//         }
+
+//         fprintf(resultsFile, "\n");
+
+//         num_processed_bytes += sizeof(inst_trace_t);
+//       }
+//     }
+//   }
+//   free(recv_buffer);
+//   return NULL;
+// }
+
 #[no_mangle]
 #[inline(never)]
 // pub extern "C" fn nvbit_at_ctx_init(ctx: *mut CUctx_st) {
 pub extern "C" fn nvbit_at_ctx_init(ctx: CUcontext) {
-    // ptr: DevicePointer<T>,
-    // if mem::size_of::<T>() == 0 {
-    //
+    // setup stats here
+    stats.init();
+
     // cudaMallocManaged((void**)&(elm->name), sizeof(char) * (strlen("hello") + 1) );
+
+    unsafe { recv_thread_started = true };
+    unsafe { recv_thread = Some(std::thread::spawn(read_channel)) };
     println!("nvbit_at_ctx_init");
 
-    // pthread_create(&recv_thread, NULL, recv_thread_fun, NULL);
+    // start receiving from the channel
 
+    // pthread_create(&recv_thread, NULL, recv_thread_fun, NULL);
 
     // std::ptr::NonNull::dangling().as_ptr() as *mut u64;
 
@@ -824,137 +975,19 @@ pub extern "C" fn nvbit_at_ctx_init(ctx: CUcontext) {
 #[inline(never)]
 // pub extern "C" fn nvbit_at_ctx_term(ctx: *mut CUctx_st) {
 pub extern "C" fn nvbit_at_ctx_term(ctx: CUcontext) {
-    println!("total_dynamic_instr_counter:");
-    // dbg!(stats.total_dynamic_instr_counter);
+    println!("nvbit_at_ctx_term");
+    unsafe {
+        if recv_thread_started {
+            recv_thread_started = false;
+        }
+        if let Some(handle) = recv_thread.take() {
+            // println!("would wait for receiver thread here");
+            handle.join().expect("join receiver thread");
+        }
+        // std::thread::sleep(std::time::Duration::from_secs(20));
+    }
     dbg!(unsafe { *stats.pstop_report });
     dbg!(unsafe { *stats.ptotal_dynamic_instr_counter });
     dbg!(unsafe { *stats.preported_dynamic_instr_counter });
-    println!("nvbit_at_ctx_term");
+    println!("done");
 }
-
-// #[no_mangle]
-// #[inline(never)]
-
-// extern "C" {
-//     pub fn instrument_inst(
-//         pred: libc::c_int,
-//         opcode_id: libc::c_int,
-//         vpc: u32,
-//         is_mem: bool,
-//         addr: u64,
-//         width: i32,
-//         desReg: i32,
-//         srcReg1: i32,
-//         srcReg2: i32,
-//         srcReg3: i32,
-//         srcReg4: i32,
-//         srcReg5: i32,
-//         srcNum: i32,
-//         pchannel_dev: u64,
-//         ptotal_dynamic_instr_counter: u64,
-//         preported_dynamic_instr_counter: u64,
-//         pstop_report: u64,
-//     );
-// }
-// {
-// panic!("called");
-// }
-
-// pub fn say_hi() {
-//     // println!("about to die");
-//     // unsafe { instrument_inst(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) }
-//     // println!("survive");
-// }
-
-// #[no_mangle]
-// pub unsafe extern "C" fn new_instrument_inst(
-//     pred: libc::c_int,
-//     opcode_id: libc::c_int,
-//     vpc: u32,
-//     is_mem: bool,
-//     addr: u64,
-//     width: i32,
-//     desReg: i32,
-//     srcReg1: i32,
-//     srcReg2: i32,
-//     srcReg3: i32,
-//     srcReg4: i32,
-//     srcReg5: i32,
-//     srcNum: i32,
-//     pchannel_dev: u64,
-//     ptotal_dynamic_instr_counter: u64,
-//     preported_dynamic_instr_counter: u64,
-//     pstop_report: u64,
-// ) {
-//     //     // external_symbols::instrument_inst(
-//     //     instrument_inst(
-//     //         pred,
-//     //         opcode_id,
-//     //         vpc,
-//     //         is_mem,
-//     //         addr,
-//     //         width,
-//     //         desReg,
-//     //         srcReg1,
-//     //         srcReg2,
-//     //         srcReg3,
-//     //         srcReg4,
-//     //         srcReg5,
-//     //         srcNum,
-//     //         pchannel_dev,
-//     //         ptotal_dynamic_instr_counter,
-//     //         preported_dynamic_instr_counter,
-//     //         pstop_report,
-//     //     );
-// }
-
-// #[no_mangle]
-// #[inline(never)]
-// extern "C" pub fn instrument_inst(
-//     pred: libc::c_int,
-//     opcode_id: libc::c_int,
-//     vpc: u32,
-//     is_mem: bool,
-//     addr: u64,
-//     width: i32,
-//     desReg: i32,
-//     srcReg1: i32,
-//     srcReg2: i32,
-//     srcReg3: i32,
-//     srcReg4: i32,
-//     srcReg5: i32,
-//     srcNum: i32,
-//     pchannel_dev: u64,
-//     ptotal_dynamic_instr_counter: u64,
-//     preported_dynamic_instr_counter: u64,
-//     pstop_report: u64,
-// );
-
-// // // mod external_symbols {
-// extern "C" {
-//     // #[no_mangle]
-//     // pub fn say_hi();
-
-//     #[no_mangle]
-//     #[inline(never)]
-//     pub fn instrument_inst(
-//         pred: libc::c_int,
-//         opcode_id: libc::c_int,
-//         vpc: u32,
-//         is_mem: bool,
-//         addr: u64,
-//         width: i32,
-//         desReg: i32,
-//         srcReg1: i32,
-//         srcReg2: i32,
-//         srcReg3: i32,
-//         srcReg4: i32,
-//         srcReg5: i32,
-//         srcNum: i32,
-//         pchannel_dev: u64,
-//         ptotal_dynamic_instr_counter: u64,
-//         preported_dynamic_instr_counter: u64,
-//         pstop_report: u64,
-//     );
-// }
-// // }

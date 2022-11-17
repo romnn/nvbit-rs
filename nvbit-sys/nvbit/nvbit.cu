@@ -92,14 +92,6 @@ std::unique_ptr<std::vector<InstrShim>> rust_nvbit_get_instrs(
   return vec;
 }
 
-std::unique_ptr<ChannelDev> new_dev_channel() {
-    return std::make_unique<ChannelDev>();
-}
-
-std::unique_ptr<ChannelHost> new_host_channel() {
-    return std::make_unique<ChannelHost>();
-}
-
 /* std::unique_ptr<std::vector<C>> c_return_unique_ptr_vector_opaque(); */
 // CUfunction = pointer to CUfunc_st
 /* rust::Vec<Shared> *rust_nvbit_get_related_functions() { */

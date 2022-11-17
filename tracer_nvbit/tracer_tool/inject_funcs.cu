@@ -9,6 +9,8 @@
 // contains definition of the inst_trace_t structure
 #include "common.h"
 
+// THIS FILE CAN ONLY CONTAIN DEVICE FUNCTIONS!!! (astoolspatch)
+
 // Instrumentation function that we want to inject, please note the use of
 // extern "C" __device__ __noinline__
 // To prevent "dead"-code elimination by the compiler.

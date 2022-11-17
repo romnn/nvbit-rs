@@ -2,10 +2,13 @@
 /* Author2: Jason Shen, shen203@purdue.edu - 2019 */
 
 #include <stdint.h>
+/* #include "utils/channel.hpp" */
 
-static __managed__ uint64_t total_dynamic_instr_counter = 0;
-static __managed__ uint64_t reported_dynamic_instr_counter = 0;
-static __managed__ bool stop_report = false;
+/* static __managed__ uint64_t total_dynamic_instr_counter = 0; */
+/* static __managed__ uint64_t reported_dynamic_instr_counter = 0; */
+/* static __managed__ bool stop_report = false; */
+
+extern "C" void flush_channel(void *channel_dev);
 
 /* information collected in the instrumentation function and passed
  * on the channel from the GPU to the CPU */
