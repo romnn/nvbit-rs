@@ -1,2 +1,2 @@
-tracer_nvbit linguist-vendored
-nvbit-sys/nvbit_release linguist-vendored
+tracer_nvbit/* linguist-vendored
+nvbit-sys/nvbit_release/* linguist-vendored
