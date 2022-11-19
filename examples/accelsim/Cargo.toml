@@ -3,9 +3,6 @@ name = "accelsim"
 version = "0.1.0"
 edition = "2021"
 
-# [build]
-# lto = true
-
 [lib]
 # crate-type = ["staticlib"]
 crate-type = ["cdylib", "staticlib"]
@@ -13,13 +10,18 @@ crate-type = ["cdylib", "staticlib"]
 # crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
-# todo: when ready, use nvbit-rs
-nvbit-sys = { path = "../../nvbit-sys" }
+nvbit-rs = { path = "../../nvbit-rs" }
 lazy_static = "1"
 libc = "0.2"
-libloading = "0.7"
 anyhow = "1.0"
+# rustacuda = "0.1"
+# rustacuda_derive = "0.1"
+# rustacuda_core = "0.1"
+
+# todo: remove
 cxx = "1.0"
+# libloading = "0.7"
+nvbit-sys = { path = "../../nvbit-sys" }
 
 [build-dependencies]
 cc = "1"

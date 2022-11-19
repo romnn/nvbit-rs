@@ -5,7 +5,6 @@
  *
  */
 
-// our own header file
 #include "nvbit-sys/nvbit/nvbit.h"
 
 /* #include "nvbit-sys/nvbit/channel.h" */
@@ -33,44 +32,10 @@
 // #include "nvbit-sys/nvbit_release/core/nvbit_tool.h"
 /* #include "nvbit_tool.h" */
 
-
-/* extern "C" __noinline__ */
-
-/* extern "C" void init_nvbit() {} */
-
-/* extern "C" int this_must_be_present() { */
-/*   return 42; */
-/* } */
-
-/* /1* extern "C" size_t rust_nvbit_get_related_functions() { *1/ */
-/* extern "C" size_t rust_nvbit_get_related_functions() { */
-/*   // does not work, we really cannot know the size of a CUfunc_st */
-/*   // only forward declaration */
-/*   // "opaque type", we must use references only to it and wrap inside wrapper with pointer */
-/*   /1* printf("sizeof(CUfunc_st) = %d\n", sizeof(CUfunc_st)); *1/ */
-/*   return 42; */
-/* } */
-
-/* extern "C" */ 
-/* std::unique_ptr<std::vector<CUfunction>> */ 
-/* rust::Vec<TestCUfunction> rust_new_nvbit_get_related_functions( */
-/* std::unique_ptr<std::vector<uint8_t>> rust_nvbit_get_related_functions( */
 std::unique_ptr<std::vector<CUfunctionShim>> rust_nvbit_get_related_functions(
-    /* const CUctx_st &ctx, const CUfunc_st &func */
     CUcontext ctx, CUfunction func
-    /* TestCUcontext ctx, TestCUfunction func */
 ) {
-  /* std::vector<Shared> stdv; */
-  /* std::copy(v.begin(), v.end(), std::back_inserter(stdv)); */
-
   std::vector<CUfunction> related = nvbit_get_related_functions(ctx, func);
-  /* rust::Vec<TestCUfunction> vec; */
-  /* for (auto & element : related) { */
-  /*   /1* vec.push_back(TestCUfunction { element }); *1/ */
-  /* } */
-  /* /1* for v.begin(), v.end(), std::back_inserter(stdv) *1/ */
-  /* return vec; */
-  /* auto vec = std::unique_ptr<std::vector<uint8_t>>(new std::vector<uint8_t>()); */
   auto vec = std::unique_ptr<std::vector<CUfunctionShim>>(new std::vector<CUfunctionShim>());
   for (auto & element : related) {
     vec->push_back(CUfunctionShim { element });
@@ -80,9 +45,7 @@ std::unique_ptr<std::vector<CUfunctionShim>> rust_nvbit_get_related_functions(
 }
 
 std::unique_ptr<std::vector<InstrShim>> rust_nvbit_get_instrs(
-    /* const CUctx_st &ctx, const CUfunc_st &func */
     CUcontext ctx, CUfunction func
-    /* TestCUcontext ctx, TestCUfunction func */
 ) {
   std::vector<Instr*> instructions = nvbit_get_instrs(ctx, func);
   auto vec = std::unique_ptr<std::vector<InstrShim>>(new std::vector<InstrShim>());
@@ -91,18 +54,3 @@ std::unique_ptr<std::vector<InstrShim>> rust_nvbit_get_instrs(
   }
   return vec;
 }
-
-/* std::unique_ptr<std::vector<C>> c_return_unique_ptr_vector_opaque(); */
-// CUfunction = pointer to CUfunc_st
-/* rust::Vec<Shared> *rust_nvbit_get_related_functions() { */
-/*   /1* for (auto shared : v) { *1/ */
-/*   /1*   std::cout << shared.v << std::endl; *1/ */
-/*   /1* } *1/ */
-
-/*   /1* // Copy the elements to a C++ std::vector using STL algorithm. *1/ */
-/*   rust::Vec<Shared> stdv; */
-/*   /1* std::vector<Shared> stdv; *1/ */
-/*   /1* std::copy(v.begin(), v.end(), std::back_inserter(stdv)); *1/ */
-/*   /1* assert(v.size() == stdv.size()); *1/ */
-/*   return */ 
-/* } */

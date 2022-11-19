@@ -22,6 +22,7 @@ TRACER_IMPL=$(mkfile_dir)/../../target/debug/libaccelsim.a
 tracer.so: $(TRACER_IMPL)
 	gcc \
 		-L$(NVBIT_INCLUDE) \
+		-g \
 		-Wl,--whole-archive $(TRACER_IMPL) \
 		-Wl,--no-whole-archive -lstdc++ -lnvbit -lcuda -lcudart -lcudadevrt \
 		-shared -o tracer.so

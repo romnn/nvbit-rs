@@ -1,5 +1,5 @@
-use nvbit_sys::bindings;
-use nvbit_sys::nvbit::Instr;
+// use nvbit_sys::bindings;
+// use nvbit_sys::nvbit::Instr;
 
 #[derive(Debug, Default, Clone)]
 pub struct InstrumentInstArgs {
@@ -22,67 +22,23 @@ pub struct InstrumentInstArgs {
 }
 
 impl InstrumentInstArgs {
-    pub unsafe fn instrument(&self, instr: *const Instr) {
-        bindings::nvbit_add_call_arg_guard_pred_val(instr, false);
-        bindings::nvbit_add_call_arg_const_val32(
-            instr,
-            self.opcode_id.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val32(instr, self.vpc, false);
-        bindings::nvbit_add_call_arg_const_val32(instr, self.is_mem as u32, false);
-        bindings::nvbit_add_call_arg_mref_addr64(
-            instr,
-            self.addr.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val32(
-            instr,
-            self.width.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val32(
-            instr,
-            self.desReg.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val32(
-            instr,
-            self.srcReg1.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val32(
-            instr,
-            self.srcReg2.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val32(
-            instr,
-            self.srcReg3.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val32(
-            instr,
-            self.srcReg4.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val32(
-            instr,
-            self.srcReg5.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val32(
-            instr,
-            self.srcNum.try_into().unwrap_or_default(),
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val64(instr, self.pchannel_dev, false);
-        bindings::nvbit_add_call_arg_const_val64(instr, self.ptotal_dynamic_instr_counter, false);
-        bindings::nvbit_add_call_arg_const_val64(
-            instr,
-            self.preported_dynamic_instr_counter,
-            false,
-        );
-        bindings::nvbit_add_call_arg_const_val64(instr, self.pstop_report, false);
+    pub fn instrument<'a>(&self, instr: &mut nvbit_rs::Instruction<'a>) {
+        instr.add_call_arg_guard_pred_val();
+        instr.add_call_arg_const_val32(self.opcode_id.try_into().unwrap_or_default());
+        instr.add_call_arg_const_val32(self.vpc);
+        instr.add_call_arg_const_val32(self.is_mem as u32);
+        instr.add_call_arg_mref_addr64(self.addr.try_into().unwrap_or_default());
+        instr.add_call_arg_const_val32(self.width.try_into().unwrap_or_default());
+        instr.add_call_arg_const_val32(self.desReg.try_into().unwrap_or_default());
+        instr.add_call_arg_const_val32(self.srcReg1.try_into().unwrap_or_default());
+        instr.add_call_arg_const_val32(self.srcReg2.try_into().unwrap_or_default());
+        instr.add_call_arg_const_val32(self.srcReg3.try_into().unwrap_or_default());
+        instr.add_call_arg_const_val32(self.srcReg4.try_into().unwrap_or_default());
+        instr.add_call_arg_const_val32(self.srcReg5.try_into().unwrap_or_default());
+        instr.add_call_arg_const_val32(self.srcNum.try_into().unwrap_or_default());
+        instr.add_call_arg_const_val64(self.pchannel_dev);
+        instr.add_call_arg_const_val64(self.ptotal_dynamic_instr_counter);
+        instr.add_call_arg_const_val64(self.preported_dynamic_instr_counter);
+        instr.add_call_arg_const_val64(self.pstop_report);
     }
 }

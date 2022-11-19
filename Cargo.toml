@@ -5,3 +5,10 @@ members = [
   "nvbit-rs",
   "examples/*",
 ]
+
+[profile.dev]
+opt-level = 0
+debug = 1
+
+[profile.release]
+lto = true

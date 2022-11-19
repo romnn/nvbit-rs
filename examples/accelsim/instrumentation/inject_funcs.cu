@@ -2,30 +2,19 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "utils/utils.h"
 #include "utils/channel.hpp"
-/* #include "nvbit-sys/nvbit_release/core/utils/utils.h" */
-/* #include "nvbit-sys/nvbit_release/core/utils/channel.hpp" */
-/* #include "nvbit_tool.h" */
+#include "utils/utils.h"
 
 // contains definition of the inst_trace_t structure
 #include "common.h"
-/* #include "nvbit_tool.h" */
-/* #include "nvbit-sys/nvbit/common.h" */
-
-
-/* extern "C" __noinline__ void say_hi() { */
-/* extern "C" void say_hi() { */
-/*   printf("I WAS LINKED!!!\n"); */
-/*   /1* fuu *1/ */
-/* } */
 
 // this does not work :( the symbol is U and not T in nm
-/* extern "C" __attribute__((visibility("default"))) static __managed__ ChannelDev channel_dev; */
+/* extern "C" __attribute__((visibility("default"))) static __managed__
+ * ChannelDev channel_dev; */
 
-// Instrumentation function that we want to inject, please note the use of
-// extern "C" __device__ __noinline__
-// To prevent "dead"-code elimination by the compiler.
+// Instrumentation function that we want to inject.
+// Please note the use of extern "C" __device__ __noinline__
+// to prevent "dead"-code elimination by the compiler.
 extern "C" __device__ __noinline__ void instrument_inst(
     int pred, int opcode_id, int32_t vpc, bool is_mem, uint64_t addr,
     int32_t width, int32_t desReg, int32_t srcReg1, int32_t srcReg2,

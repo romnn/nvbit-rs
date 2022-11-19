@@ -68,13 +68,26 @@ fn generate_utils_bindings() {
         .expect("writing bindings failed");
 }
 
-fn generate_nvbit_bindings() {
+fn generate_nvbit_bindings(includes: impl IntoIterator<Item = PathBuf>) {
+    let mut clang_args: Vec<String> = vec![
+        "-x".to_string(),
+        "c++".to_string(),
+        "-std=c++11".to_string(),
+    ];
+    for inc in includes.into_iter() {
+        clang_args.push(format!("-I{}", inc.display()));
+    }
+    dbg!(&clang_args);
     let mut builder = bindgen::Builder::default()
-        .clang_args(["-x", "c++", "-std=c++11"])
-        .allowlist_type("Instr")
+        .clang_args(clang_args)
+        // .detect_include_paths(false)
+        // .allowlist_type("Instr")
+        .allowlist_var("NVBIT_VERSION")
         .allowlist_type("basic_block_t")
         .allowlist_type("CFG_t")
         // avoid difficulties with C++ std::vector for example
+        // .blocklist_type("Instr")
+        // .opaque_type("Instr")
         .opaque_type("std::.*")
         .blocklist_type("std::.*")
         // .allowlist_type("ipoint_t")
@@ -128,7 +141,8 @@ fn generate_nvbit_bindings() {
         // .header("nvbit_release/core/generated_cuda_meta.h")
         // .header("nvbit_release/core/tools_cuda_api_meta.h")
         // .header("nvbit_release/core/instr_types.h")
-        .header("nvbit_release/core/nvbit.h");
+        // .header("nvbit_release/core/nvbit.h");
+        .header("nvbit/bindings/nvbit_bindings.h");
 
     // .header("nvbit_release/core/nvbit_tool.h")
     // .header("nvbit_release/core/instr_types.h")
@@ -375,16 +389,16 @@ fn main() {
 
     // communicate the includes of nvbit to other crates
     println!("cargo:root={}", output_path().display());
+    let nvbit_include_path = vendored_nvbit.join("nvbit_release/core/");
+
+    let nvbit_include_path = manifest_path().join("nvbit_release/core/");
     println!(
         "cargo:rustc-link-search=native={}",
-        vendored_nvbit.join("nvbit_release/core/").display()
+        nvbit_include_path.display()
     );
-    println!(
-        "cargo:include={}",
-        manifest_path().join("nvbit_release/core/").display() // vendored_nvbit.join("nvbit_release/core/").display()
-    );
+    println!("cargo:include={}", nvbit_include_path.display());
 
-    generate_nvbit_bindings();
+    generate_nvbit_bindings([nvbit_include_path]);
     // generate_utils_bindings();
 
     build_nvbit_bridge();

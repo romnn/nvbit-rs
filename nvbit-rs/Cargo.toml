@@ -5,3 +5,5 @@ edition = "2021"
 
 [dependencies]
 nvbit-sys = { path = "../nvbit-sys" }
+cxx = "1.0"
+# cuda-driver-sys = "0.3"
