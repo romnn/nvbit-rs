@@ -151,7 +151,6 @@ impl<'c> Instrumentor<'c> {
                 let mut id_to_opcode_map: HashMap<usize, String> = HashMap::new();
 
                 let opcode = instr.opcode().expect("has opcode");
-                // dbg!(&opcode);
 
                 if !opcode_to_id_map.contains_key(opcode) {
                     let opcode_id = opcode_to_id_map.len();
@@ -160,12 +159,10 @@ impl<'c> Instrumentor<'c> {
                 }
 
                 let opcode_id = opcode_to_id_map[opcode];
-                // dbg!(&opcode_id);
 
                 instr.insert_call("instrument_inst", nvbit_rs::InsertionPoint::Before);
 
                 let mut inst_args = instrument_inst::InstrumentInstArgs::default();
-                // dbg!(&inst_args);
 
                 inst_args.opcode_id = opcode_id as i32;
 
@@ -399,45 +396,9 @@ impl<'c> Instrumentor<'c> {
                         std::process::exit(0);
                     }
 
-                    // todo: we should implement this?
-                    // use rustacuda::function::FunctionAttribute;
-                    // let function = module.get_function(&name)?;
-                    // let function = rustacuda::function::Function::from_raw(0); // new(0, 0);
-                    // let shared_memory =
-                    //     function.get_attribute(FunctionAttribute::SharedMemorySizeBytes)?;
-
-                    let mut nregs: ffi::c_int = 0;
-                    let result = unsafe {
-                        bindings::cuFuncGetAttribute(
-                            &mut nregs,
-                            bindings::CUfunction_attribute_enum::CU_FUNC_ATTRIBUTE_NUM_REGS,
-                            p.f,
-                        )
-                    };
-                    dbg!(&result);
-                    dbg!(&nregs);
-
-                    let mut shmem_static_nbytes: ffi::c_int = 0;
-                    let result = unsafe {
-                        bindings::cuFuncGetAttribute(
-                            &mut shmem_static_nbytes,
-                            bindings::CUfunction_attribute_enum::CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
-                            p.f,
-                        )
-                    };
-                    dbg!(&result);
-                    dbg!(&shmem_static_nbytes);
-
-                    let mut binary_version: ffi::c_int = 0;
-                    let result = unsafe {
-                        bindings::cuFuncGetAttribute(
-                            &mut binary_version,
-                            bindings::CUfunction_attribute_enum::CU_FUNC_ATTRIBUTE_BINARY_VERSION,
-                            p.f,
-                        )
-                    };
-                    dbg!(&result);
-                    dbg!(&binary_version);
+                    let nregs = pf.num_registers().unwrap();
+                    let shmem_static_nbytes = pf.shared_memory_bytes().unwrap();
+                    let binary_version = pf.binary_version().unwrap();
 
                     self.instrument_function_if_needed(&mut pf);
 

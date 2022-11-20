@@ -1,6 +1,3 @@
-// use nvbit_sys::bindings;
-// use nvbit_sys::nvbit::Instr;
-
 #[derive(Debug, Default, Clone)]
 pub struct InstrumentInstArgs {
     pub opcode_id: libc::c_int,

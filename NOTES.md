@@ -2,20 +2,21 @@
 
 #### TODO:
 
-- alias types used for the nvbit callback API's
-- clean up some code
+- generate less bindings?
 - finish safe abstractions in `nvbit-rs`
-- the read thread should push into a rust channel
-- use the vendor `nvbit_release` only for downstream crates
 - write a better README.md
 - rename project on github
 - publish to crates.io
 
-- use a single static for the accelsim example with all the context to avoid unsafe
 - write to a file using a compressed stream and `serde-cbor` for example
 - migrate other examples to make the api really usable
 
 #### DONE:
+- use a single static for the accelsim example with all the context to avoid unsafe
+- use the vendor `nvbit_release` only for downstream crates
+- the read thread should push into a rust channel
+- clean up some code
+- alias types used for the nvbit callback API's
 - improve the buffer implementation
 - include `cuda-sys` crate in nvbit-rs
 
