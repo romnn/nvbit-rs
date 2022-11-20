@@ -1,6 +1,5 @@
 use nvbit_sys::utils::{ChannelHost, ManagedChannelDev};
 use std::marker::PhantomData;
-use std::pin::Pin;
 use std::sync::{atomic, mpsc, Arc, Mutex};
 
 #[derive()]
@@ -32,7 +31,7 @@ impl<T> DeviceChannel<T> {
 
 #[derive()]
 struct HostChannelInner<T> {
-    channel: cxx::UniquePtr<nvbit_sys::utils::ChannelHost>,
+    channel: cxx::UniquePtr<ChannelHost>,
     buffer: super::buffer::Buffer,
     packet: PhantomData<T>,
 }
@@ -60,7 +59,7 @@ where
                         &self.buffer[num_processed_bytes..num_processed_bytes + packet_size];
                     assert_eq!(packet_size, packet_bytes.len());
                     let packet: T = unsafe { std::ptr::read(packet_bytes.as_ptr() as *const _) };
-                    tx.send(packet);
+                    tx.send(packet).expect("send packet");
                     num_processed_bytes += packet_size;
                 }
             }
@@ -131,6 +130,6 @@ where
     T: Send + 'static,
 {
     fn drop(&mut self) {
-        self.stop();
+        self.stop().expect("stop host channel");
     }
 }

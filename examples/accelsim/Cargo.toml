@@ -4,25 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-# crate-type = ["staticlib"]
-crate-type = ["cdylib", "staticlib"]
-# crate-type = ["cdylib"]
-# crate-type = ["staticlib", "cdylib"]
+crate-type = ["cdylib"]
 
 [dependencies]
 nvbit-rs = { path = "../../nvbit-rs" }
-lazy_static = "1"
-libc = "0.2"
-anyhow = "1.0"
-parking_lot = "0.12"
-rustacuda = "0.1"
-# rustacuda_derive = "0.1"
-# rustacuda_core = "0.1"
-
-# todo: remove
-cxx = "1.0"
-# libloading = "0.7"
+# so we can access the DEP_NVBIT_INCLUDE during the build
 nvbit-sys = { path = "../../nvbit-sys" }
+lazy_static = "1"
+rustacuda = "0.1"
 
 [build-dependencies]
 cc = "1"

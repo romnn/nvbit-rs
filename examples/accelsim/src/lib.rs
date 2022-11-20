@@ -1,19 +1,14 @@
-#![allow(warnings)]
-
 mod instrument_inst;
 
-use anyhow::Result;
 use lazy_static::lazy_static;
 use nvbit_rs::{DeviceChannel, HostChannel};
 use nvbit_sys::bindings;
-use parking_lot::ReentrantMutex;
 use rustacuda::memory::UnifiedBox;
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::ffi;
-use std::pin::Pin;
 use std::sync::{Arc, Mutex, RwLock};
 
+#[allow(warnings, dead_code)]
 mod common {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
@@ -44,9 +39,9 @@ struct Instrumentor<'c> {
 }
 
 impl<'c> Instrumentor<'c> {
-    pub fn new(ctx: nvbit_rs::Context<'c>) -> Self {
+    fn new(ctx: nvbit_rs::Context<'c>) -> Self {
         let mut dev_channel = nvbit_rs::DeviceChannel::new();
-        let mut host_channel = Arc::new(Mutex::new(HostChannel::<inst_trace_t>::new(
+        let host_channel = Arc::new(Mutex::new(HostChannel::<inst_trace_t>::new(
             42,
             CHANNEL_SIZE,
             &mut dev_channel,
@@ -58,8 +53,12 @@ impl<'c> Instrumentor<'c> {
             let mut packet_count = 0;
             while let Ok(packet) = rx.recv() {
                 // when we get this cta_id_x it means the kernel has completed
-                if (packet.cta_id_x == -1) {
-                    host_channel_clone.lock().unwrap().stop();
+                if packet.cta_id_x == -1 {
+                    host_channel_clone
+                        .lock()
+                        .unwrap()
+                        .stop()
+                        .expect("stop host channel");
                     break;
                 }
                 packet_count += 1;
@@ -100,7 +99,7 @@ unsafe impl<'c> Sync for Instrumentor<'c> {}
 type Contexts = RwLock<HashMap<nvbit_rs::ContextHandle<'static>, Instrumentor<'static>>>;
 
 lazy_static! {
-    static ref contexts: Contexts = RwLock::new(HashMap::new());
+    static ref CONTEXTS: Contexts = RwLock::new(HashMap::new());
 }
 
 #[no_mangle]
@@ -110,7 +109,7 @@ pub extern "C" fn nvbit_at_init() {
 }
 
 impl<'c> Instrumentor<'c> {
-    pub fn instrument_function_if_needed<'f>(&self, func: &mut nvbit_rs::Function<'f>) {
+    fn instrument_function_if_needed<'f>(&self, func: &mut nvbit_rs::Function<'f>) {
         let mut related_functions =
             nvbit_rs::get_related_functions(&mut self.ctx.lock().unwrap(), func);
 
@@ -173,7 +172,7 @@ impl<'c> Instrumentor<'c> {
                 // We only report vector registers
                 let mut src_oprd: [ffi::c_int; common::MAX_SRC as usize] =
                     [-1; common::MAX_SRC as usize];
-                let mut srcNum: usize = 0;
+                let mut src_num: usize = 0;
                 let mut dst_oprd: ffi::c_int = -1;
                 let mut mem_oper_idx: ffi::c_int = -1;
 
@@ -189,7 +188,7 @@ impl<'c> Instrumentor<'c> {
                         bindings::InstrType_OperandType::MREF => {
                             src_oprd[0] = unsafe { first_operand.u.mref.ra_num };
                             mem_oper_idx = 0;
-                            srcNum += 1;
+                            src_num += 1;
                         }
                         _ => {
                             // skip anything else (constant and predicates)
@@ -205,18 +204,18 @@ impl<'c> Instrumentor<'c> {
                     match op.type_ {
                         bindings::InstrType_OperandType::MREF => {
                             // mem is found
-                            assert!(srcNum < common::MAX_SRC as usize);
-                            src_oprd[srcNum] = unsafe { op.u.mref.ra_num };
-                            srcNum += 1;
+                            assert!(src_num < common::MAX_SRC as usize);
+                            src_oprd[src_num] = unsafe { op.u.mref.ra_num };
+                            src_num += 1;
                             // TODO: handle LDGSTS with two mem refs
                             assert!(mem_oper_idx == -1); // ensure one memory operand per inst
                             mem_oper_idx += 1;
                         }
                         bindings::InstrType_OperandType::REG => {
                             // reg is found
-                            assert!(srcNum < common::MAX_SRC as usize);
-                            src_oprd[srcNum] = unsafe { op.u.reg.num };
-                            srcNum += 1;
+                            assert!(src_num < common::MAX_SRC as usize);
+                            src_oprd[src_num] = unsafe { op.u.reg.num };
+                            src_num += 1;
                         }
                         _ => {
                             // skip anything else (constant and predicates)
@@ -225,7 +224,7 @@ impl<'c> Instrumentor<'c> {
                 }
 
                 // mem addresses info
-                if (mem_oper_idx >= 0) {
+                if mem_oper_idx >= 0 {
                     inst_args.is_mem = true;
                     inst_args.addr = 0;
                     inst_args.width = instr.size() as i32;
@@ -243,7 +242,7 @@ impl<'c> Instrumentor<'c> {
                 inst_args.srcReg3 = src_oprd[2];
                 inst_args.srcReg4 = src_oprd[3];
                 inst_args.srcReg5 = src_oprd[4];
-                inst_args.srcNum = srcNum as i32;
+                inst_args.srcNum = src_num as i32;
 
                 inst_args.pchannel_dev = self.dev_channel.lock().unwrap().as_mut_ptr() as u64;
 
@@ -283,7 +282,7 @@ pub extern "C" fn nvbit_at_cuda_event(
     cbid: bindings::nvbit_api_cuda_t,
     event_name: *const ffi::c_char,
     params: *mut ffi::c_void,
-    pStatus: *mut bindings::CUresult,
+    pstatus: *mut bindings::CUresult,
 ) {
     let is_exit = is_exit != 0;
     let event_name = unsafe { ffi::CStr::from_ptr(event_name).to_str().unwrap() };
@@ -291,20 +290,19 @@ pub extern "C" fn nvbit_at_cuda_event(
         "nvbit_at_cuda_event: {:?} (is_exit = {})",
         event_name, is_exit
     );
-    if let Some(instrumentor) = contexts.read().unwrap().get(&ctx.handle()) {
-        instrumentor.at_cuda_event(is_exit, cbid, event_name, params, pStatus);
+    if let Some(instrumentor) = CONTEXTS.read().unwrap().get(&ctx.handle()) {
+        instrumentor.at_cuda_event(is_exit, cbid, event_name, params, pstatus);
     }
 }
 
 impl<'c> Instrumentor<'c> {
-    pub fn at_cuda_event(
+    fn at_cuda_event(
         &self,
-        // mut ctx: nvbit_rs::Context<'static>,
         is_exit: bool,
         cbid: bindings::nvbit_api_cuda_t,
-        event_name: &str,
+        _event_name: &str,
         params: *mut ffi::c_void,
-        pStatus: *mut bindings::CUresult,
+        _pstatus: *mut bindings::CUresult,
     ) {
         if *self.skip_flag.lock().unwrap() {
             return;
@@ -396,9 +394,9 @@ impl<'c> Instrumentor<'c> {
                         std::process::exit(0);
                     }
 
-                    let nregs = pf.num_registers().unwrap();
-                    let shmem_static_nbytes = pf.shared_memory_bytes().unwrap();
-                    let binary_version = pf.binary_version().unwrap();
+                    let _nregs = pf.num_registers().unwrap();
+                    let _shmem_static_nbytes = pf.shared_memory_bytes().unwrap();
+                    let _binary_version = pf.binary_version().unwrap();
 
                     self.instrument_function_if_needed(&mut pf);
 
@@ -503,9 +501,9 @@ impl<'c> Instrumentor<'c> {
 
 #[no_mangle]
 #[inline(never)]
-pub extern "C" fn nvbit_at_ctx_init(mut ctx: nvbit_rs::Context<'static>) {
+pub extern "C" fn nvbit_at_ctx_init(ctx: nvbit_rs::Context<'static>) {
     println!("nvbit_at_ctx_init");
-    contexts
+    CONTEXTS
         .write()
         .unwrap()
         .entry(ctx.handle())
@@ -514,23 +512,30 @@ pub extern "C" fn nvbit_at_ctx_init(mut ctx: nvbit_rs::Context<'static>) {
 
 #[no_mangle]
 #[inline(never)]
-pub extern "C" fn nvbit_at_ctx_term(mut ctx: nvbit_rs::Context<'static>) {
+pub extern "C" fn nvbit_at_ctx_term(ctx: nvbit_rs::Context<'static>) {
     println!("nvbit_at_ctx_term");
-    if let Some(instrumentor) = contexts.read().unwrap().get(&ctx.handle()) {
+    if let Some(instrumentor) = CONTEXTS.read().unwrap().get(&ctx.handle()) {
         // stop the host channel
-        instrumentor.host_channel.lock().unwrap().stop();
+        instrumentor
+            .host_channel
+            .lock()
+            .unwrap()
+            .stop()
+            .expect("stop host channel");
         // finish receiving packets
         if let Some(recv_thread) = instrumentor.recv_thread.lock().unwrap().take() {
             recv_thread.join().expect("join receiver thread");
         }
+
+        instrumentor.at_ctx_term();
     }
     // this will lead to problems:
-    // contexts.write().unwrap().remove(&ctx.handle());
+    // CONTEXTS.write().unwrap().remove(&ctx.handle());
     println!("done");
 }
 
 impl<'c> Instrumentor<'c> {
-    pub fn at_ctx_term(&self) {
+    fn at_ctx_term(&self) {
         dbg!(**self.pstop_report.lock().unwrap());
         dbg!(**self.ptotal_dynamic_instr_counter.lock().unwrap());
         dbg!(**self.preported_dynamic_instr_counter.lock().unwrap());

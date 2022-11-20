@@ -2,16 +2,19 @@
 
 #### TODO:
 
+- forward the utils feature flag to the sys crate from the rs crate
+- get to build and test in github actions
+- publish to crates.io
+
 - generate less bindings?
 - finish safe abstractions in `nvbit-rs`
 - write a better README.md
-- rename project on github
-- publish to crates.io
 
 - write to a file using a compressed stream and `serde-cbor` for example
 - migrate other examples to make the api really usable
 
 #### DONE:
+- rename project on github
 - use a single static for the accelsim example with all the context to avoid unsafe
 - use the vendor `nvbit_release` only for downstream crates
 - the read thread should push into a rust channel

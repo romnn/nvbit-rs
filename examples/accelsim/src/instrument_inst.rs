@@ -1,6 +1,7 @@
+#[allow(non_snake_case)]
 #[derive(Debug, Default, Clone)]
 pub struct InstrumentInstArgs {
-    pub opcode_id: libc::c_int,
+    pub opcode_id: std::ffi::c_int,
     pub vpc: u32,
     pub is_mem: bool,
     pub addr: u64,

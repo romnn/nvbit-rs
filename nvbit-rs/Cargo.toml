@@ -1,9 +1,27 @@
 [package]
 name = "nvbit-rs"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
+
+description = "Idiomatic library for using the NVIDIA NVBIT binary instrumentation library"
+authors = ["romnn <contact@romnn.com>"]
+license-file = "LICENSE"
+homepage = "https://github.com/romnn/nvbit-rs"
+repository = "https://github.com/romnn/nvbit-rs"
+categories = [
+  "api-bindings",
+  "development-tools::profiling",
+  "os::unix-apis",
+]
+keywords = [
+  "nvbit",
+  "profiling",
+  "gpgpu",
+  "nvidia",
+  "ffi",
+]
+documentation = "https://docs.rs/nvbit-rs"
 
 [dependencies]
 nvbit-sys = { path = "../nvbit-sys" }
 cxx = "1.0"
-# cuda-driver-sys = "0.3"

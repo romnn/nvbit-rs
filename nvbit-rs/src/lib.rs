@@ -1,5 +1,3 @@
-#![allow(warnings)]
-
 pub mod cfg;
 pub mod cuda;
 pub mod instr;

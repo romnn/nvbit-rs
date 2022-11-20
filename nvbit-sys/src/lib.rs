@@ -1,5 +1,7 @@
-#![allow(warnings, dead_code)]
-
 pub mod nvbit;
 pub mod utils;
-pub mod bindings;
+
+#[allow(warnings, dead_code)]
+pub mod bindings {
+    include!(concat!(env!("OUT_DIR"), "/bindings/nvbit.rs"));
+}

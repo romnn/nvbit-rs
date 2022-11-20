@@ -1,4 +1,3 @@
-#![allow(warnings)]
 use std::path::PathBuf;
 
 pub fn nvbit_include() -> PathBuf {
@@ -20,13 +19,15 @@ pub fn manifest_path() -> PathBuf {
 }
 
 fn generate_bindings() {
-    let mut builder = bindgen::Builder::default()
+    let builder = bindgen::Builder::default()
         .clang_args([
             "-x",
             "c++",
             "-std=c++11",
             &format!("-I{}", nvbit_include().display()),
         ])
+        .generate_comments(false)
+        .rustified_enum(".*")
         .header("instrumentation/common.h");
 
     let bindings = builder.generate().expect("generating bindings");

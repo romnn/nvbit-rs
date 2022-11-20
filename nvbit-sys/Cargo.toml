@@ -1,17 +1,38 @@
 [package]
 name = "nvbit-sys"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
 links = "nvbit"
+build = "build.rs"
+
+description = "Native bindings to the NVIDIA NVBIT binary instrumentation library"
+authors = ["romnn <contact@romnn.com>"]
+license-file = "LICENSE"
+homepage = "https://github.com/romnn/nvbit-rs"
+repository = "https://github.com/romnn/nvbit-rs"
+categories = [
+  "external-ffi-bindings",
+  "development-tools::profiling",
+  "os::unix-apis",
+]
+keywords = [
+  "nvbit",
+  "profiling",
+  "gpgpu",
+  "nvidia",
+  "ffi",
+]
+documentation = "https://docs.rs/nvbit-sys"
+exclude = [
+  "nvbit_release/*",
+  "debug/*",
+]
 
 [lib]
 crate-type = ["rlib", "cdylib", "staticlib"]
 
 [dependencies]
 cxx = "1.0"
-# libc = "0.2"
-# add cuda-sys as an optional dependency?
-# libssh2-sys = { version = "0.2.19", optional = true }
 
 [build-dependencies]
 reqwest = { version = "0", features = ["blocking"] }
@@ -25,3 +46,6 @@ tar = "0.4"
 [features]
 default = ["utils"]
 utils = []
+
+[package.metadata.cargo-feature-combinations]
+denylist = ["default"]

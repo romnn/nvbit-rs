@@ -1,6 +1,3 @@
-#![allow(warnings)]
-
-use bindgen::EnumVariation;
 use std::path::{Path, PathBuf};
 
 static NVBIT_RELEASES: &'static str = "https://github.com/NVlabs/NVBit/releases/download";
@@ -8,7 +5,7 @@ static NVBIT_VERSION: &'static str = "1.5.5";
 
 fn create_dirs(path: impl AsRef<Path>) {
     let dir = path.as_ref().parent().expect("get parent dir");
-    std::fs::create_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("create dirs");
 }
 
 fn output_path() -> PathBuf {
@@ -32,7 +29,7 @@ fn generate_nvbit_bindings<P: AsRef<Path>>(includes: impl IntoIterator<Item = P>
     for inc in includes.into_iter() {
         clang_args.push(format!("-I{}", inc.as_ref().display()));
     }
-    let mut builder = bindgen::Builder::default()
+    let builder = bindgen::Builder::default()
         .clang_args(clang_args)
         .allowlist_var("NVBIT_VERSION")
         .allowlist_type("basic_block_t")
@@ -58,14 +55,14 @@ fn generate_nvbit_bindings<P: AsRef<Path>>(includes: impl IntoIterator<Item = P>
         .allowlist_type("^cu.*")
         .allowlist_type("^CU.*")
         .generate_comments(false)
-        .rustified_enum("*")
+        .rustified_enum(".*")
         .prepend_enum_name(false)
         .derive_eq(true)
         .derive_default(true)
         .derive_hash(true)
         .derive_ord(true)
         .size_t_is_usize(true)
-        .default_enum_style(EnumVariation::Rust {
+        .default_enum_style(bindgen::EnumVariation::Rust {
             non_exhaustive: false,
         })
         .header("nvbit/bindings/nvbit_bindings.h");
@@ -126,6 +123,7 @@ fn download_nvbit(version: impl AsRef<str>, arch: impl AsRef<str>) -> PathBuf {
     nvbit_path
 }
 
+#[allow(dead_code)]
 fn build_tool<P: AsRef<Path>>(includes: impl IntoIterator<Item = P>) {
     let nvbit_obj = output_path().join("nvbit.o");
     let nvbit_obj_link = output_path().join("nvbit_link.o");
@@ -223,8 +221,7 @@ fn build_nvbit_bridge<P: AsRef<Path>>(includes: impl IntoIterator<Item = P>) {
         cmd.flag(&format!("-I{}", inc.as_ref().display()));
     }
 
-    cmd
-        .no_default_flags(true)
+    cmd.no_default_flags(true)
         .warnings(false)
         .flag("-Xcompiler")
         .flag("-fPIC")
@@ -283,14 +280,14 @@ fn main() {
     build_nvbit_bridge([&nvbit_include_path]);
     build_utils_bridge([&nvbit_include_path]);
 
-    // println!(
-    //     "cargo:rustc-link-search=native={}",
-    //     "/usr/lib/x86_64-linux-gnu"
-    // );
+    println!(
+        "cargo:rustc-link-search=native={}",
+        "/usr/lib/x86_64-linux-gnu"
+    );
 
     println!("cargo:rustc-link-lib=static=nvbit");
-    // println!("cargo:rustc-link-lib=cuda");
-    // println!("cargo:rustc-link-lib=cudart");
+    println!("cargo:rustc-link-lib=cuda");
+    println!("cargo:rustc-link-lib=cudart");
     // println!("cargo:rustc-link-lib=cudadevrt");
     // println!("cargo:rustc-link-lib=stdc++");
 }

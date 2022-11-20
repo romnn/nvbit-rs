@@ -1,5 +1,5 @@
 use super::{CudaResult, IntoCudaResult};
-use nvbit_sys::{bindings, nvbit};
+use nvbit_sys::bindings;
 use std::marker::PhantomData;
 
 #[derive(PartialEq, Eq, Hash, Debug)]

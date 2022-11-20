@@ -55,24 +55,6 @@ pub struct Predicate {
     pub is_uniform: bool,
 }
 
-// impl<'a> Predicate<'a> {
-//     // pub fn new(inner: &'a cxx::UniquePtr<nvbit::Instr>) -> Self {
-//     //     Self {
-//     //         inner,
-//     //         // func: PhantomData,
-//     //     }
-//     // }
-
-//     pub fn num(&mut self) -> i32 {
-//         self.inner.pin_mut().getPredNum()
-//     }
-
-//     pub fn is_neg(&mut self) -> bool {
-//         self.inner.pin_mut().isPredNeg()
-//     }
-
-//     }
-
 #[repr(transparent)]
 #[derive(PartialEq, Eq, Hash)]
 pub struct Instruction<'a> {
@@ -120,9 +102,6 @@ impl<'a> Instruction<'a> {
 
     /// string containing the SASS, i.e. IMAD.WIDE R8, R8, R9
     pub fn sass(&mut self) -> Option<&'a str> {
-        // let sass = self.inner.pin_mut().getSass();
-        // let inner = unsafe { Pin::new_unchecked(&mut *i.ptr as &mut nvbit::Instr) };
-        // let inner = unsafe { Pin::new_unchecked(&mut *self.inner as &mut nvbit::Instr) };
         let sass = self.pin_mut().getSass();
         if sass.is_null() {
             None
@@ -134,18 +113,15 @@ impl<'a> Instruction<'a> {
     /// offset in bytes of this instruction within the function
     pub fn offset(&mut self) -> u32 {
         self.pin_mut().getOffset()
-        // self.inner.pin_mut().getOffset()
     }
 
     /// id of the instruction within the function
     pub fn idx(&mut self) -> u32 {
         self.pin_mut().getIdx()
-        // self.inner.pin_mut().getIdx()
     }
 
     /// instruction predicate
     pub fn has_pred(&mut self) -> Option<Predicate> {
-        // if self.inner.pin_mut().hasPred() {
         if self.pin_mut().hasPred() {
             Some(Predicate {
                 num: self.pin_mut().getPredNum(),
@@ -271,7 +247,9 @@ impl<'a> Instruction<'a> {
     /// identified by name (as opposed to function pointers) and that
     /// we declare the function as:
     ///
-    ///       extern "C" __device__ __noinline__
+    /// ```cpp
+    /// extern "C" __device__ __noinline__ kernel() {}
+    /// ```
     ///
     /// to prevent the compiler from optimizing out this device function
     /// during compilation.
@@ -280,8 +258,6 @@ impl<'a> Instruction<'a> {
     /// order in which they get executed is defined by the order in which
     /// they have been inserted.
     pub fn insert_call(&mut self, dev_func_name: impl AsRef<str>, point: InsertionPoint) {
-        // void nvbit_insert_call(const Instr* instr, const char* dev_func_name,
-        //                        ipoint_t point);
         let func_name = ffi::CString::new(dev_func_name.as_ref()).unwrap();
         unsafe {
             bindings::nvbit_insert_call(self.as_ptr() as *const _, func_name.as_ptr(), point.into())
@@ -291,18 +267,12 @@ impl<'a> Instruction<'a> {
     /// Add int32_t argument to last injected call,
     /// value of the (uniform) predicate for this instruction
     pub fn add_call_arg_guard_pred_val(&mut self) {
-        // <'a>(instr: &Instruction<'a>) {
-        // void nvbit_add_call_arg_guard_pred_val(const Instr* instr,
-        //                                        bool is_variadic_arg = false);
         unsafe { bindings::nvbit_add_call_arg_guard_pred_val(self.as_ptr() as *const _, false) };
     }
 
     /// Add int32_t argument to last injected call,
     /// value of the designated predicate for this instruction
     pub fn add_call_arg_pred_val_at(&mut self, pred_num: i32) {
-        // <'a>(instr: &Instruction<'a>, pred_num: i32) {
-        // void nvbit_add_call_arg_pred_val_at(const Instr* instr, int pred_num,
-        //                                     bool is_variadic_arg = false);
         unsafe {
             bindings::nvbit_add_call_arg_pred_val_at(self.as_ptr() as *const _, pred_num, false)
         };
@@ -311,9 +281,6 @@ impl<'a> Instruction<'a> {
     /// Add int32_t argument to last injected call,
     /// value of the designated uniform predicate for this instruction
     pub fn add_call_arg_upred_val_at(&mut self, upred_num: i32) {
-        // <'a>(instr: &Instruction<'a>, upred_num: i32) {
-        // void nvbit_add_call_arg_upred_val_at(const Instr* instr, int upred_num,
-        //                                      bool is_variadic_arg = false);
         unsafe {
             bindings::nvbit_add_call_arg_upred_val_at(self.as_ptr() as *const _, upred_num, false)
         };
@@ -322,53 +289,35 @@ impl<'a> Instruction<'a> {
     /// Add int32_t argument to last injected call,
     /// value of the entire predicate register for this thread
     pub fn add_call_arg_pred_reg(&mut self) {
-        // <'a>(instr: &Instruction<'a>) {
-        // void nvbit_add_call_arg_pred_reg(const Instr* instr,
-        //                                  bool is_variadic_arg = false);
         unsafe { bindings::nvbit_add_call_arg_pred_reg(self.as_ptr() as *const _, false) };
     }
 
     /// Add int32_t argument to last injected call,
     /// value of the entire uniform predicate register for this thread
     pub fn add_call_arg_upred_reg(&mut self) {
-        // <'a>(instr: &Instruction<'a>) {
-        // void nvbit_add_call_arg_upred_reg(const Instr* instr,
-        //                                   bool is_variadic_arg = false);
         unsafe { bindings::nvbit_add_call_arg_upred_reg(self.as_ptr() as *const _, false) };
     }
 
     /// Add uint32_t argument to last injected call, constant 32-bit value
     pub fn add_call_arg_const_val32(&mut self, val: u32) {
-        // <'a>(instr: &Instruction<'a>, val: u32) {
-        // void nvbit_add_call_arg_const_val32(const Instr* instr, uint32_t val,
-        //                                     bool is_variadic_arg = false);
         unsafe { bindings::nvbit_add_call_arg_const_val32(self.as_ptr() as *const _, val, false) };
     }
 
     /// Add uint64_t argument to last injected call,
     /// constant 64-bit value
     pub fn add_call_arg_const_val64(&mut self, val: u64) {
-        // <'a>(instr: &Instruction<'a>, val: u64) {
-        // void nvbit_add_call_arg_const_val64(const Instr* instr, uint64_t val,
-        //                                     bool is_variadic_arg = false);
         unsafe { bindings::nvbit_add_call_arg_const_val64(self.as_ptr() as *const _, val, false) };
     }
 
     /// Add uint32_t argument to last injected call,
     /// content of the register reg_num
     pub fn add_call_arg_reg_val(&mut self, reg_num: i32) {
-        // <'a>(instr: &Instruction<'a>, reg_num: i32) {
-        // void nvbit_add_call_arg_reg_val(const Instr* instr, int reg_num,
-        //                                 bool is_variadic_arg = false);
         unsafe { bindings::nvbit_add_call_arg_reg_val(self.as_ptr() as *const _, reg_num, false) };
     }
 
     /// Add uint32_t argument to last injected call,
     /// content of theuniform register reg_num
     pub fn add_call_arg_ureg_val(&mut self, reg_num: i32) {
-        // <'a>(instr: &Instruction<'a>, reg_num: i32) {
-        // void nvbit_add_call_arg_ureg_val(const Instr* instr, int reg_num,
-        //                                  bool is_variadic_arg = false);
         unsafe { bindings::nvbit_add_call_arg_ureg_val(self.as_ptr() as *const _, reg_num, false) };
     }
 
@@ -376,9 +325,6 @@ impl<'a> Instruction<'a> {
     /// 32-bit at launch value at offset "offset",
     /// set at launch time with nvbit_set_at_launch
     pub fn add_call_arg_launch_val32(&mut self, offset: i32) {
-        // <'a>(instr: &Instruction<'a>, offset: i32) {
-        // void nvbit_add_call_arg_launch_val32(const Instr* instr, int offset,
-        //                                      bool is_variadic_arg = false);
         unsafe {
             bindings::nvbit_add_call_arg_launch_val32(self.as_ptr() as *const _, offset, false)
         };
@@ -388,9 +334,6 @@ impl<'a> Instruction<'a> {
     /// 64-bit at launch value at offset "offset",
     /// set at launch time with nvbit_set_at_launch
     pub fn add_call_arg_launch_val64(&mut self, offset: i32) {
-        // <'a>(instr: &Instruction<'a>, offset: i32) {
-        // void nvbit_add_call_arg_launch_val64(const Instr* instr, int offset,
-        //                                      bool is_variadic_arg = false);
         unsafe {
             bindings::nvbit_add_call_arg_launch_val64(self.as_ptr() as *const _, offset, false)
         };
@@ -399,9 +342,6 @@ impl<'a> Instruction<'a> {
     /// Add uint32_t argument to last injected call,
     /// constant bank value at c[bankid][bankoffset]
     pub fn add_call_arg_cbank_val(&mut self, bank_id: i32, bank_offset: i32) {
-        // <'a>(instr: &Instruction<'a>, bank_id: i32, bank_offset: i32) {
-        // void nvbit_add_call_arg_cbank_val(const Instr* instr, int bankid,
-        //                                   int bankoffset, bool is_variadic_arg = false);
         unsafe {
             bindings::nvbit_add_call_arg_cbank_val(
                 self.as_ptr() as *const _,
@@ -416,16 +356,11 @@ impl<'a> Instruction<'a> {
     ///
     /// Typically memory instructions have only 1 MREF so in general id = 0
     pub fn add_call_arg_mref_addr64(&mut self, id: i32) {
-        // <'a>(instr: &Instruction<'a>, id: i32) {
-        // void nvbit_add_call_arg_mref_addr64(const Instr* instr, int id = 0,
-        //                                     bool is_variadic_arg = false);
         unsafe { bindings::nvbit_add_call_arg_mref_addr64(self.as_ptr() as *const _, id, false) };
     }
 
     /// Remove the original instruction
     pub fn remove_orig(&mut self) {
-        // <'a>(instr: &Instruction<'a>) {
-        // void nvbit_remove_orig(const Instr* instr);
         unsafe { bindings::nvbit_remove_orig(self.as_ptr() as *const _) };
     }
 }
