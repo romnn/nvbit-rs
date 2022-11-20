@@ -9,6 +9,7 @@ mod ffi {
 
         type c_void;
 
+        type ManagedChannelDev;
         type ChannelDev;
         type ChannelHost;
 
@@ -16,14 +17,16 @@ mod ffi {
 
         fn new_dev_channel() -> UniquePtr<ChannelDev>;
         fn get_id(self: Pin<&mut ChannelDev>) -> i32;
-        fn dev_channel_size() -> usize;
+        // fn dev_channel_size() -> usize;
 
         // unsafe fn new_managed_dev_channel() -> UniquePtr<ChannelDev>;
-        unsafe fn new_managed_dev_channel() -> *mut ChannelDev;
+        // unsafe fn new_managed_dev_channel() -> *mut ChannelDev;
+        unsafe fn new_managed_dev_channel() -> UniquePtr<ManagedChannelDev>;
 
         unsafe fn new_host_channel(
             id: i32,
             buff_size: i32,
+            // channel_dev: Pin<&mut ChannelDev>,
             channel_dev: *mut ChannelDev,
         ) -> UniquePtr<ChannelHost>;
 
@@ -34,3 +37,12 @@ mod ffi {
 }
 
 pub use ffi::*;
+
+unsafe impl Send for ffi::ChannelHost {}
+unsafe impl Sync for ffi::ChannelHost {}
+
+unsafe impl Send for ffi::ChannelDev {}
+unsafe impl Sync for ffi::ChannelDev {}
+
+// unsafe impl Send for ffi::c_void {}
+// unsafe impl Sync for ffi::c_void {}

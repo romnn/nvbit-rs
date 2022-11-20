@@ -1,14 +1,18 @@
 #![allow(warnings)]
 
-pub mod instr;
 pub mod cfg;
 pub mod cuda;
+pub mod instr;
 pub mod nvbit;
+pub mod utils;
+pub mod buffer;
 
 pub use cfg::*;
-pub use nvbit::*;
 pub use cuda::*;
 pub use instr::*;
+pub use nvbit::*;
+pub use utils::*;
+pub use buffer::*;
 
 #[cfg(test)]
 mod tests {

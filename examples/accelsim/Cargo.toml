@@ -14,7 +14,8 @@ nvbit-rs = { path = "../../nvbit-rs" }
 lazy_static = "1"
 libc = "0.2"
 anyhow = "1.0"
-# rustacuda = "0.1"
+parking_lot = "0.12"
+rustacuda = "0.1"
 # rustacuda_derive = "0.1"
 # rustacuda_core = "0.1"
 

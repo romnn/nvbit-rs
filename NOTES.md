@@ -2,7 +2,7 @@
 
 #### TODO:
 
-- extern rust indirection for nvbit callback API's
+- alias types used for the nvbit callback API's
 - clean up some code
 - finish safe abstractions in `nvbit-rs`
 - the read thread should push into a rust channel
@@ -16,6 +16,7 @@
 - migrate other examples to make the api really usable
 
 #### DONE:
+- improve the buffer implementation
 - include `cuda-sys` crate in nvbit-rs
 
 ```bash
