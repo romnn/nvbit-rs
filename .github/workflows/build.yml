@@ -15,11 +15,17 @@ jobs:
       matrix:
         package: ${{ fromJson(needs.feature-matrix.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
+
+      - uses: Jimver/cuda-toolkit@v0.2.8
+        id: cuda-toolkit
+        with:
+          cuda: '11.7.0'
+
       - name: Build
         run: >-
           cargo build
