@@ -1,6 +1,5 @@
 [workspace]
 members = [
-  "cxx-test",
   "nvbit-sys",
   "nvbit-rs",
   "examples/*",

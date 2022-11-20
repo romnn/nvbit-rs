@@ -37,7 +37,7 @@ mod ffi {
     extern "Rust" {}
 
     unsafe extern "C++" {
-        include!("nvbit-sys/nvbit/nvbit.h");
+        include!("nvbit-sys/nvbit/nvbit_bridge.h");
 
         type CUfunc_st = super::bindings::CUfunc_st;
         type CUctx_st = super::bindings::CUctx_st;

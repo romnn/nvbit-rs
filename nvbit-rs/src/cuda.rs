@@ -1,7 +1,6 @@
 use nvbit_sys::{bindings, nvbit};
 use std::marker::PhantomData;
 
-// #[repr(transparent)]
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct ContextHandle<'a> {
     inner: bindings::CUcontext,
@@ -45,13 +44,14 @@ impl<'a> Context<'a> {
     }
 }
 
-// impl<'a> Deref for Context<'a> {
-//     type Target = CUcontext;
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub struct FunctionHandle<'a> {
+    inner: bindings::CUfunction,
+    module: PhantomData<&'a ()>,
+}
 
-//     fn deref(&self) -> &Self::Target {
-//         &self.inner
-//     }
-// }
+unsafe impl<'a> Send for FunctionHandle<'a> {}
+unsafe impl<'a> Sync for FunctionHandle<'a> {}
 
 #[repr(transparent)]
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
@@ -71,9 +71,12 @@ impl<'a> Function<'a> {
         }
     }
 
-    // pub fn inner(&self) -> bindings::CUfunction {
-    //     self.inner
-    // }
+    pub fn handle(&self) -> FunctionHandle<'a> {
+        FunctionHandle {
+            inner: self.inner,
+            module: PhantomData,
+        }
+    }
 
     pub fn as_ptr(&self) -> *const bindings::CUfunc_st {
         self.inner as *const _

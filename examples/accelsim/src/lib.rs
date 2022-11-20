@@ -4,6 +4,7 @@ mod instrument_inst;
 
 use anyhow::Result;
 use lazy_static::lazy_static;
+use nvbit_rs::{DeviceChannel, HostChannel};
 use nvbit_sys::bindings;
 use parking_lot::ReentrantMutex;
 use rustacuda::memory::UnifiedBox;
@@ -17,29 +18,21 @@ mod common {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 
+use common::inst_trace_t;
+
 // 1 MiB = 2**20
 const CHANNEL_SIZE: usize = 1 << 20;
-// const CHANNEL_SIZE: usize = 1 << 10;
 
 struct Instrumentor<'c> {
     ctx: Mutex<nvbit_rs::Context<'c>>,
-    // ctx: nvbit_rs::Context<'c>,
-    already_instrumented: Mutex<HashSet<nvbit_rs::Function<'c>>>,
-    // pchannel_dev: *mut nvbit_sys::utils::ChannelDev,
-    dev_channel: Mutex<nvbit_rs::DeviceChannel<common::inst_trace_t>>,
-    host_channel: Arc<Mutex<nvbit_rs::HostChannel<common::inst_trace_t>>>,
-    // host_channel: nvbit_rs::HostChannel<common::inst_trace_t>,
-    // channel_host: Mutex<cxx::UniquePtr<nvbit_sys::utils::ChannelHost>>,
+    already_instrumented: Mutex<HashSet<nvbit_rs::FunctionHandle<'c>>>,
+    dev_channel: Mutex<DeviceChannel<inst_trace_t>>,
+    host_channel: Arc<Mutex<HostChannel<inst_trace_t>>>,
     ptotal_dynamic_instr_counter: Mutex<UnifiedBox<u64>>,
     preported_dynamic_instr_counter: Mutex<UnifiedBox<u64>>,
     pstop_report: Mutex<UnifiedBox<bool>>,
-    // pchannel_host: Pin<&'a mut ChannelHost>,
     kernelid: Mutex<u64>,
-    // first_call: bool,
     terminate_after_limit_number_of_kernels_reached: bool,
-    // recv_thread_started: Mutex<bool>,
-    // recv_thread_receiving: Mutex<bool>,
-    // recv_thread: Mutex<Option<std::thread::JoinHandle<()>>>,
     recv_thread: Mutex<Option<std::thread::JoinHandle<()>>>,
     instr_begin_interval: u32,
     instr_end_interval: u32,
@@ -51,101 +44,49 @@ struct Instrumentor<'c> {
 }
 
 impl<'c> Instrumentor<'c> {
-    // #[inline(never)]
-    // pub fn init(&self) {
-    //     println!("stats are ready");
-    // }
-
     pub fn new(ctx: nvbit_rs::Context<'c>) -> Self {
-        // let mut devPtr: bindings::CUdeviceptr = std::ptr::null_mut::<u64>() as _;
-        // let mut devPtr: *mut u64 = std::ptr::null_mut::<u64>() as _;
-        // let total_dynamic_instr_counter: u64 = 0;
-        // let pinned: Pin<&mut u64> = Pin::new(&mut total_dynamic_instr_counter);
-        // // avoid dropping?
-        // std::mem::forget(pinned);
-        // // let mut total_dynamic_instr_counter: Box<u64> = Box::new(0);
-        // let mut devPtr: *mut u64 = &mut *total_dynamic_instr_counter as _;
-
-        // let pchannel_dev = unsafe { nvbit_sys::utils::new_managed_dev_channel() };
         let mut dev_channel = nvbit_rs::DeviceChannel::new();
+        let mut host_channel = Arc::new(Mutex::new(HostChannel::<inst_trace_t>::new(
+            42,
+            CHANNEL_SIZE,
+            &mut dev_channel,
+        )));
 
-        // let pchannel_dev =
-        //     unsafe { cuda_malloc_unified::<u64>(1).expect("cuda malloc unified") };
-        // panic!("size of channel dev: {}", dev_channel_size());
-
-        // let pchannel_dev =
-        //     unsafe { cuda_malloc_unified::<ChannelDev>(1).expect("cuda malloc unified") };
-
-        // panic!("size of channel dev: {}", std::mem::size_of(pchannel_dev.as_ref().unwrap()));
-
-        // let pchannel_dev = unsafe { &mut channel_dev as *mut ChannelDev };
-        // let mut channel_host =
-        //     unsafe { nvbit_sys::utils::new_host_channel(42, CHANNEL_SIZE as i32, pchannel_dev) };
-        let mut host_channel = Arc::new(Mutex::new(
-            nvbit_rs::HostChannel::<common::inst_trace_t>::new(42, CHANNEL_SIZE, &mut dev_channel),
-        ));
-
-        // Arc::new(Mutex::new());
         let rx = host_channel.lock().unwrap().read();
-        // // let host_channel_clone = host_channel.clone();
         let host_channel_clone = host_channel.clone();
         let recv_thread = Mutex::new(Some(std::thread::spawn(move || {
+            let mut packet_count = 0;
             while let Ok(packet) = rx.recv() {
                 // when we get this cta_id_x it means the kernel has completed
                 if (packet.cta_id_x == -1) {
-                    // *self.recv_thread_receiving.lock().unwrap() = false;
                     host_channel_clone.lock().unwrap().stop();
-                    // host_channel.lock().unwrap().stop();
-                    // break;
+                    break;
                 }
+                packet_count += 1;
                 // println!("{:?}", packet);
             }
+            println!("received {} packets", packet_count);
         })));
 
-        // pchannel_dev should be initialized now???
-
-        // channel_host.init(0, CHANNEL_SIZE, pchannel_dev, NULL);
-        // channel_host.init(0, CHANNEL_SIZE, &channel_dev, NULL);
-
-        let ptotal_dynamic_instr_counter = UnifiedBox::new(0u64).expect("cuda malloc unified");
-        // unsafe { cuda_malloc_unified::<u64>(1).expect("cuda malloc unified") };
-
-        let preported_dynamic_instr_counter = UnifiedBox::new(0u64).expect("cuda malloc unified");
-        // unsafe { cuda_malloc_unified::<u64>(1).expect("cuda malloc unified") };
-
-        let pstop_report = UnifiedBox::new(false).expect("cuda malloc unified");
-        // unsafe { cuda_malloc_unified::<bool>(1).expect("cuda malloc unified") };
-
-        // unsafe { *ptotal_dynamic_instr_counter = 0 };
-        // unsafe { *preported_dynamic_instr_counter = 0 };
-        // unsafe { *pstop_report = false };
-
-        // let mut devPtr: *mut u64 = std::ptr::null_mut::<u64>() as _;
-        // todo: run the cuda managed alloc here already
-
-        // let pchannel_host = pchannel_host.pin_mut();
+        let ptotal_dynamic_instr_counter = Mutex::new(UnifiedBox::new(0u64).unwrap());
+        let preported_dynamic_instr_counter = Mutex::new(UnifiedBox::new(0u64).unwrap());
+        let pstop_report = Mutex::new(UnifiedBox::new(false).unwrap());
 
         Self {
             ctx: Mutex::new(ctx),
-            // ctx,
             already_instrumented: Mutex::new(HashSet::default()),
             dev_channel: Mutex::new(dev_channel),
-            // host_channel: Mutex::new(host_channel),
             host_channel,
-            ptotal_dynamic_instr_counter: Mutex::new(ptotal_dynamic_instr_counter),
-            preported_dynamic_instr_counter: Mutex::new(preported_dynamic_instr_counter),
-            pstop_report: Mutex::new(pstop_report),
+            ptotal_dynamic_instr_counter,
+            preported_dynamic_instr_counter,
+            pstop_report,
             kernelid: Mutex::new(1),
-            // first_call: true,
             terminate_after_limit_number_of_kernels_reached: false,
-            // recv_thread_started: Mutex::new(false),
-            // recv_thread_receiving: Mutex::new(false),
-            // recv_thread: Mutex::new(None),
-            recv_thread, // : Mutex::new(None),
+            recv_thread,
             instr_begin_interval: 0,
             instr_end_interval: u32::MAX,
             active_from_start: true,
-            active_region: Mutex::new(true), // region of interest when active from start is 0
+            active_region: Mutex::new(true), // region of interest
             skip_flag: Mutex::new(false),
             dynamic_kernel_limit_start: 0, // start from the begging kernel
             dynamic_kernel_limit_end: 0,   // // no limit
@@ -156,22 +97,11 @@ impl<'c> Instrumentor<'c> {
 unsafe impl<'c> Send for Instrumentor<'c> {}
 unsafe impl<'c> Sync for Instrumentor<'c> {}
 
-// std::unordered_map<CUcontext, CTXstate*> ctx_state_map;
-
 type Contexts = RwLock<HashMap<nvbit_rs::ContextHandle<'static>, Instrumentor<'static>>>;
 
 lazy_static! {
-    // static ref instrumentor: Instrumentor = Stats::new();
-    // static ref contexts: Mutex<HashMap<nvbit_rs::ContextHandle<'static>, Instrumentor<'static>>> =
-    static ref contexts: Contexts =
-        RwLock::new(HashMap::new());
-        // ReentrantMutex::new(RefCell::new(HashMap::new()));
+    static ref contexts: Contexts = RwLock::new(HashMap::new());
 }
-
-// lazy_static! {
-//     static ref ALREADY_INSTRUMENTED: Mutex<HashSet<nvbit_rs::Function<'static>>> =
-//         Mutex::new(HashSet::new());
-// }
 
 #[no_mangle]
 #[inline(never)]
@@ -180,33 +110,17 @@ pub extern "C" fn nvbit_at_init() {
 }
 
 impl<'c> Instrumentor<'c> {
-    // pub fn instrument_function_if_needed<'c, 'f>(
-    pub fn instrument_function_if_needed<'f>(
-        &self,
-        // ctx: &mut nvbit_rs::Context<'c>,
-        func: &mut nvbit_rs::Function<'f>,
-    ) {
-        println!("instrument_function_if_needed");
-
-        // test getting the id
-        // let id = unsafe { Pin::new_unchecked(&mut *stats.pchannel_dev as &mut ChannelDev) }.get_id();
-        // println!("dev channel id: {}", id);
-
+    pub fn instrument_function_if_needed<'f>(&self, func: &mut nvbit_rs::Function<'f>) {
         let mut related_functions =
             nvbit_rs::get_related_functions(&mut self.ctx.lock().unwrap(), func);
 
         for f in related_functions.iter_mut().chain([func]) {
-            // "recording" function was instrumented,
-
             let mut f = nvbit_rs::Function::new(f.as_mut_ptr());
+
             let func_name = nvbit_rs::get_func_name(&mut self.ctx.lock().unwrap(), &mut f);
             let func_addr = nvbit_rs::get_func_addr(&mut f);
 
-            // let mut instrumented_lock = self.already_instrumented; // .lock().unwrap();
-
-            // todo: is it okay to clone a function?
-            // this does allow concurrent mutable access :(
-            if !self.already_instrumented.lock().unwrap().insert(f.clone()) {
+            if !self.already_instrumented.lock().unwrap().insert(f.handle()) {
                 println!(
                     "already instrumented function {} at address {:#X}",
                     func_name, func_addr
@@ -220,8 +134,6 @@ impl<'c> Instrumentor<'c> {
             );
 
             let mut instrs = nvbit_rs::get_instrs(&mut self.ctx.lock().unwrap(), &mut f);
-            println!("found {} instructions", instrs.len());
-            println!("instructions {:#?} ", instrs);
 
             let mut instr_count: u32 = 0;
 
@@ -336,8 +248,6 @@ impl<'c> Instrumentor<'c> {
                 inst_args.srcReg5 = src_oprd[4];
                 inst_args.srcNum = srcNum as i32;
 
-                // add pointer to channel_dev and other counters
-                // inst_args.pchannel_dev = (self.pchannel_dev as *mut ffi::c_void) as u64;
                 inst_args.pchannel_dev = self.dev_channel.lock().unwrap().as_mut_ptr() as u64;
 
                 inst_args.ptotal_dynamic_instr_counter = self
@@ -346,8 +256,6 @@ impl<'c> Instrumentor<'c> {
                     .unwrap()
                     .as_unified_ptr()
                     .as_raw_mut() as u64;
-                // *mut ffi::c_void) as u64;
-                // (stats.ptotal_dynamic_instr_counter as *mut ffi::c_void) as u64;
 
                 inst_args.preported_dynamic_instr_counter =
                     self.preported_dynamic_instr_counter
@@ -355,7 +263,6 @@ impl<'c> Instrumentor<'c> {
                         .unwrap()
                         .as_unified_ptr()
                         .as_raw_mut() as u64;
-                // as *mut ffi::c_void) as u64;
 
                 inst_args.pstop_report = self
                     .pstop_report
@@ -363,8 +270,6 @@ impl<'c> Instrumentor<'c> {
                     .unwrap()
                     .as_unified_ptr()
                     .as_raw_mut() as u64;
-                // (stats.pstop_report.as_unified_ptr() as *mut ffi::c_void) as u64;
-                // dbg!(&inst_args);
 
                 inst_args.instrument(instr);
                 instr_count += 1;
@@ -377,7 +282,6 @@ impl<'c> Instrumentor<'c> {
 #[inline(never)]
 pub extern "C" fn nvbit_at_cuda_event(
     ctx: nvbit_rs::Context<'static>,
-    // mut ctx: nvbit_rs::Context<'static>,
     is_exit: ffi::c_int,
     cbid: bindings::nvbit_api_cuda_t,
     event_name: *const ffi::c_char,
@@ -390,20 +294,8 @@ pub extern "C" fn nvbit_at_cuda_event(
         "nvbit_at_cuda_event: {:?} (is_exit = {})",
         event_name, is_exit
     );
-    // let mut ctx_map = ;
-    // let ctx_lock = contexts.lock();
-    // let mut test = lock.get_mut();
-    // println!("ctx: {:p}", ctx.as_ptr());
-    // let mut ctx_map = ctx_lock.borrow();
-    // println!("got the lock for {}", event_name);
-
     if let Some(instrumentor) = contexts.read().unwrap().get(&ctx.handle()) {
-        // .expect("unknown context");
-        // println!("ctx: {:p}", instrumentor.ctx.as_ptr());
         instrumentor.at_cuda_event(is_exit, cbid, event_name, params, pStatus);
-        println!("handled cuda event {}", event_name);
-    } else {
-        println!("skip event {}", event_name);
     }
 }
 
@@ -417,11 +309,6 @@ impl<'c> Instrumentor<'c> {
         params: *mut ffi::c_void,
         pStatus: *mut bindings::CUresult,
     ) {
-        // println!(
-        //     "nvbit_at_cuda_event: {:?} (is_exit = {})",
-        //     event_name, is_exit
-        // );
-
         if *self.skip_flag.lock().unwrap() {
             return;
         }
@@ -509,12 +396,11 @@ impl<'c> Instrumentor<'c> {
                         && self.dynamic_kernel_limit_end > 0
                         && *self.kernelid.lock().unwrap() > self.dynamic_kernel_limit_end
                     {
-                        println!("i decided to terminate");
                         std::process::exit(0);
                     }
 
-                    use rustacuda::function::FunctionAttribute;
-
+                    // todo: we should implement this?
+                    // use rustacuda::function::FunctionAttribute;
                     // let function = module.get_function(&name)?;
                     // let function = rustacuda::function::Function::from_raw(0); // new(0, 0);
                     // let shared_memory =
@@ -553,8 +439,6 @@ impl<'c> Instrumentor<'c> {
                     dbg!(&result);
                     dbg!(&binary_version);
 
-                    // self.instrument_function_if_needed(&mut self.ctx, &mut pf);
-                    println!("instrumenting");
                     self.instrument_function_if_needed(&mut pf);
 
                     if *self.active_region.lock().unwrap() {
@@ -611,12 +495,9 @@ impl<'c> Instrumentor<'c> {
                     // }
 
                     *self.kernelid.lock().unwrap() += 1;
-                    // *self.recv_thread_receiving.lock().unwrap() = true;
                 } else {
                     // is exit
                     *self.skip_flag.lock().unwrap() = true;
-                    // make sure current kernel is completed
-                    // unsafe { common::flush_channel(self.dev_channel.as_mut_ptr() as *mut ffi::c_void) };
                     unsafe {
                         common::flush_channel(
                             self.dev_channel.lock().unwrap().as_mut_ptr() as *mut _
@@ -659,281 +540,36 @@ impl<'c> Instrumentor<'c> {
     }
 }
 
-// pub unsafe fn cuda_malloc_unified<T>(count: usize) -> Result<*mut T> {
-//     // CudaResult<UnifiedPointer<T>> {
-//     let size = count.checked_mul(std::mem::size_of::<T>()).unwrap_or(0);
-//     dbg!(&size);
-//     if size == 0 {
-//         panic!("InvalidMemoryAllocation");
-//     }
-
-//     let mut ptr: *mut ffi::c_void = std::ptr::null_mut();
-//     let result = unsafe {
-//         bindings::cuMemAllocManaged(
-//             &mut ptr as *mut *mut ffi::c_void as *mut u64,
-//             size,
-//             bindings::CUmemAttach_flags_enum::CU_MEM_ATTACH_GLOBAL as u32,
-//         )
-//     };
-//     if result != bindings::cudaError_enum::CUDA_SUCCESS {
-//         panic!("CUDA ERROR: {:?}", result);
-//     }
-//     // .to_result()?;
-//     Ok(ptr as *mut T)
-//     // Ok(UnifiedPointer::wrap(ptr as *mut T))
-// }
-
-impl<'c> Instrumentor<'c> {
-    pub fn read_channel(&mut self) {
-        println!("read channel thread started");
-
-        // println!(
-        //     "creating a buffer of size {} ({} MiB)",
-        //     CHANNEL_SIZE as usize,
-        //     CHANNEL_SIZE as f32 / 1024.0f32.powi(2)
-        // );
-        // // let mut recv_buffer = buffer::Buffer::with_size(CHANNEL_SIZE as usize);
-        // // let mut recv_buffer = buffer::alloc_box_buffer(CHANNEL_SIZE as usize);
-        // let mut recv_buffer = nvbit_rs::buffer::Buffer::new(CHANNEL_SIZE);
-        // println!("{:02X?}", &recv_buffer[0..10]);
-        // println!("{:02X?}", &recv_buffer[(CHANNEL_SIZE - 10)..CHANNEL_SIZE]);
-        // // let recv_buffer_ptr =
-        // // std::mem::forget(recv_buffer);
-
-        // // let recv_buffer: [*mut ffi::c_void; CHANNEL_SIZE as usize] =
-        // //     [std::ptr::null_mut() as *mut ffi::c_void; CHANNEL_SIZE as usize];
-
-        // let packet_size = std::mem::size_of::<common::inst_trace_t>();
-        // let mut packet_count = 0;
-
-        // while *self.recv_thread_started.lock().unwrap() {
-        //     // loop {
-        //     // println!("receiving");
-        //     // let num_recv_bytes: u32 = 0;
-        //     // while (recv_thread_receiving &&
-        //     let num_recv_bytes = 0;
-        //     // let num_recv_bytes = unsafe {
-        //     //     self.host_channel.lock().unwrap().pin_mut().recv(
-        //     //         recv_buffer.as_mut_ptr() as *mut nvbit_sys::utils::c_void,
-        //     //         // *recv_buffer.as_mut_ptr() as *mut c_void,
-        //     //         CHANNEL_SIZE as u32,
-        //     //     )
-        //     // };
-        //     if *self.recv_thread_receiving.lock().unwrap() && num_recv_bytes > 0 {
-        //         // println!("received {} bytes", num_recv_bytes);
-        //         let mut num_processed_bytes: usize = 0;
-        //         while num_processed_bytes < num_recv_bytes as usize {
-        //             // let ma: &mut common::inst_trace_t = unsafe {
-        //             let packet_bytes =
-        //                 &recv_buffer[num_processed_bytes..num_processed_bytes + packet_size];
-        //             // println!("{:02X?}", packet_bytes);
-
-        //             assert_eq!(
-        //                 std::mem::size_of::<common::inst_trace_t>(),
-        //                 packet_bytes.len()
-        //             );
-        //             let ma: common::inst_trace_t =
-        //                 unsafe { std::ptr::read(packet_bytes.as_ptr() as *const _) };
-        //             println!("received from channel: {:#?}", &ma);
-
-        //             // when we get this cta_id_x it means the kernel has completed
-        //             if (ma.cta_id_x == -1) {
-        //                 *self.recv_thread_receiving.lock().unwrap() = false;
-        //                 break;
-        //             }
-
-        //             println!("size of common::inst_trace_t: {}", packet_size);
-        //             num_processed_bytes += packet_size;
-        //             packet_count += 1;
-        //         }
-        //     }
-        // }
-        // println!("received {} packets", packet_count);
-        // todo: currently our buffer is mem::forget so we must free here
-    }
-}
-
-// void *recv_thread_fun(void *) {
-//   char *recv_buffer = (char *)malloc(CHANNEL_SIZE);
-
-//   while (recv_thread_started) {
-//     uint32_t num_recv_bytes = 0;
-//     if (recv_thread_receiving &&
-//         (num_recv_bytes = channel_host.recv(recv_buffer, CHANNEL_SIZE)) > 0) {
-//       uint32_t num_processed_bytes = 0;
-//       while (num_processed_bytes < num_recv_bytes) {
-//         inst_trace_t *ma = (inst_trace_t *)&recv_buffer[num_processed_bytes];
-
-//         // when we get this cta_id_x it means the kernel has completed
-//         if (ma->cta_id_x == -1) {
-//           recv_thread_receiving = false;
-//           break;
-//         }
-
-//         fprintf(resultsFile, "%d ", ma->cta_id_x);
-//         fprintf(resultsFile, "%d ", ma->cta_id_y);
-//         fprintf(resultsFile, "%d ", ma->cta_id_z);
-//         fprintf(resultsFile, "%d ", ma->warpid_tb);
-//         if (print_core_id) {
-//           fprintf(resultsFile, "%d ", ma->sm_id);
-//           fprintf(resultsFile, "%d ", ma->warpid_sm);
-//         }
-//         fprintf(resultsFile, "%04x ", ma->vpc); // Print the virtual PC
-//         fprintf(resultsFile, "%08x ", ma->active_mask & ma->predicate_mask);
-//         if (ma->GPRDst >= 0) {
-//           fprintf(resultsFile, "1 ");
-//           fprintf(resultsFile, "R%d ", ma->GPRDst);
-//         } else
-//           fprintf(resultsFile, "0 ");
-
-//         // Print the opcode.
-//         fprintf(resultsFile, "%s ", id_to_opcode_map[ma->opcode_id].c_str());
-//         unsigned src_count = 0;
-//         for (int s = 0; s < MAX_SRC; s++) // GPR srcs count.
-//           if (ma->GPRSrcs[s] >= 0)
-//             src_count++;
-//         fprintf(resultsFile, "%d ", src_count);
-
-//         for (int s = 0; s < MAX_SRC; s++) // GPR srcs.
-//           if (ma->GPRSrcs[s] >= 0)
-//             fprintf(resultsFile, "R%d ", ma->GPRSrcs[s]);
-
-//         // print addresses
-//         std::bitset<32> mask(ma->active_mask & ma->predicate_mask);
-//         if (ma->is_mem) {
-//           std::istringstream iss(id_to_opcode_map[ma->opcode_id]);
-//           std::vector<std::string> tokens;
-//           std::string token;
-//           while (std::getline(iss, token, '.')) {
-//             if (!token.empty())
-//               tokens.push_back(token);
-//           }
-//           fprintf(resultsFile, "%d ", get_datawidth_from_opcode(tokens));
-
-//           bool base_stride_success = false;
-//           uint64_t base_addr = 0;
-//           int stride = 0;
-//           std::vector<long long> deltas;
-
-//           if (enable_compress) {
-//             // try base+stride format
-//             base_stride_success =
-//                 base_stride_compress(ma->addrs, mask, base_addr, stride);
-//             if (!base_stride_success) {
-//               // if base+stride fails, try base+delta format
-//               base_delta_compress(ma->addrs, mask, base_addr, deltas);
-//             }
-//           }
-
-//           if (base_stride_success && enable_compress) {
-//             // base + stride format
-//             fprintf(resultsFile, "%u 0x%llx %d ", address_format::base_stride,
-//                     base_addr, stride);
-//           } else if (!base_stride_success && enable_compress) {
-//             // base + delta format
-//             fprintf(resultsFile, "%u 0x%llx ", address_format::base_delta,
-//                     base_addr);
-//             for (int s = 0; s < deltas.size(); s++) {
-//               fprintf(resultsFile, "%lld ", deltas[s]);
-//             }
-//           } else {
-//             // list all the addresses
-//             fprintf(resultsFile, "%u ", address_format::list_all);
-//             for (int s = 0; s < 32; s++) {
-//               if (mask.test(s))
-//                 fprintf(resultsFile, "0x%016lx ", ma->addrs[s]);
-//             }
-//           }
-//         } else {
-//           fprintf(resultsFile, "0 ");
-//         }
-
-//         fprintf(resultsFile, "\n");
-
-//         num_processed_bytes += sizeof(inst_trace_t);
-//       }
-//     }
-//   }
-//   free(recv_buffer);
-//   return NULL;
-// }
-
 #[no_mangle]
 #[inline(never)]
 pub extern "C" fn nvbit_at_ctx_init(mut ctx: nvbit_rs::Context<'static>) {
     println!("nvbit_at_ctx_init");
-    // let ctx_lock = contexts.write().unwrap();
-
-    // // setup stats
-    // stats.init();
-
-    // // cudaMallocManaged((void**)&(elm->name), sizeof(char) * (strlen("hello") + 1) );
-    // // start reading from the channel
-    // unsafe { recv_thread_started = true };
-    // unsafe { recv_thread = Some(std::thread::spawn(read_channel)) };
-    // let ctx = Arc::new(ctx);
-    // println!("nvbit_at_ctx_init");
-    // let ctx_lock = contexts.lock();
-    // let mut ctx_map = ctx_lock.borrow_mut();
-    // println!("ctx: {:p}", ctx.as_ptr());
-    // let instrumentor = contexts
     contexts
         .write()
         .unwrap()
         .entry(ctx.handle())
         .or_insert_with(|| Instrumentor::new(ctx));
-    // println!("ctx: {:p}", instrumentor.ctx.as_ptr());
-    // instrumentor.at_ctx_init();
-}
-
-impl<'c> Instrumentor<'c> {
-    pub fn at_ctx_init(&self) {
-        // setup stats
-        // stats.init();
-
-        // cudaMallocManaged((void**)&(elm->name), sizeof(char) * (strlen("hello") + 1) );
-        // start reading from the channel
-        // *self.recv_thread_started.lock().unwrap() = true;
-        // *self.recv_thread.lock().unwrap() = Some(std::thread::spawn(|| self.read_channel()));
-    }
 }
 
 #[no_mangle]
 #[inline(never)]
 pub extern "C" fn nvbit_at_ctx_term(mut ctx: nvbit_rs::Context<'static>) {
     println!("nvbit_at_ctx_term");
-    // let ctx_map = contexts.read().unwrap();
-    // let ctx_lock = contexts.lock();
-    // must borrow as mut, but will also cause at event to be called, which then cannot borrow
-    // let mut ctx_map = ctx_lock.borrow();
-    // println!("ctx: {:p}", ctx.as_ptr());
     if let Some(instrumentor) = contexts.read().unwrap().get(&ctx.handle()) {
-        // .expect("unknown context");
-        // println!("ctx: {:p}", instrumentor.ctx.as_ptr());
-        // instrumentor.at_ctx_term();
-        // drop of the channels will run here
-        // IMPORTANT: skip
+        // stop the host channel
         instrumentor.host_channel.lock().unwrap().stop();
+        // finish receiving packets
         if let Some(recv_thread) = instrumentor.recv_thread.lock().unwrap().take() {
             recv_thread.join().expect("join receiver thread");
         }
     }
-    // ctx_lock.borrow_mut().remove(&ctx.handle());
+    // this will lead to problems:
     // contexts.write().unwrap().remove(&ctx.handle());
     println!("done");
 }
 
 impl<'c> Instrumentor<'c> {
     pub fn at_ctx_term(&self) {
-        // unsafe {
-        // if self.recv_thread_started {
-        //     self.recv_thread_started = false;
-        // }
-        // self.host_channel.stop().expect("finish receiving from channel");
-        // if let Some(handle) = self.recv_thread.lock().unwrap().take() {
-        //     handle.join().expect("join receiver thread");
-        // }
-        // }
         dbg!(**self.pstop_report.lock().unwrap());
         dbg!(**self.ptotal_dynamic_instr_counter.lock().unwrap());
         dbg!(**self.preported_dynamic_instr_counter.lock().unwrap());
