@@ -25,6 +25,9 @@ jobs:
         id: cuda-toolkit
         with:
           cuda: '11.7.0'
+      - run: |
+          ldconfig
+          ldconfig -v
 
       - name: Test
         run: >-
