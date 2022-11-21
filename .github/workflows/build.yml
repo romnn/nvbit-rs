@@ -26,8 +26,7 @@ jobs:
         with:
           cuda: '11.7.0'
       - run: |
-          sudo ldconfig
-          sudo ldconfig -v
+          sudo ldconfig ${{steps.cuda-toolkit.outputs.CUDA_PATH}} 
 
       - name: Build
         run: >-
