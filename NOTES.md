@@ -1,6 +1,16 @@
 ## nvbit-rs
 
+DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
+apt install -y build-essential curl git pkg-config libssl-dev clang kmod
+docker cp cuda.run 8bc3b843eecc:/cuda.run
+./cuda.run --silent --toolkit --samples
+./cuda.run --silent --toolkit --driver
+export PATH="/usr/local/cuda-11.7/bin:$PATH"
+cargo test # fails due to runtime cuda not available
+ldconfig -p | grep libcuda # also does not find it
+
 #### TODO:
+
 
 - forward the utils feature flag to the sys crate from the rs crate
 - get to build and test in github actions
