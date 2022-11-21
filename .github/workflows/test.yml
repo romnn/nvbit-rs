@@ -26,8 +26,8 @@ jobs:
         with:
           cuda: '11.7.0'
       - run: |
-          ldconfig
-          ldconfig -v
+          sudo ldconfig
+          sudo ldconfig -v
 
       - name: Test
         run: >-
