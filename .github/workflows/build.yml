@@ -27,9 +27,6 @@ jobs:
           cuda: '11.7.0'
           linux-local-args: '["--driver", "--toolkit"]'
 
-      # - run: |
-      #     sudo ldconfig ${{steps.cuda-toolkit.outputs.CUDA_PATH}} 
-
       - name: Build
         run: >-
           cargo build

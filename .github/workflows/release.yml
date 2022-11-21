@@ -17,6 +17,20 @@ jobs:
           toolchain: stable
           override: true
 
-      - uses: katyo/publish-crates@v1
+      - uses: Jimver/cuda-toolkit@v0.2.8
+        id: cuda-toolkit
         with:
+          cuda: '11.7.0'
+          linux-local-args: '["--driver", "--toolkit"]'
+
+      - name: Publish nvbit-sys crate
+        uses: katyo/publish-crates@v1
+        with:
+          path: ./nvbit-sys
+          registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish nvbit-rs crate
+        uses: katyo/publish-crates@v1
+        with:
+          path: ./nvbit-rs
           registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
