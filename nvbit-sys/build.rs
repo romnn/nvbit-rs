@@ -1,3 +1,6 @@
+mod find_cuda;
+
+use std::env;
 use std::path::{Path, PathBuf};
 
 static NVBIT_RELEASES: &'static str = "https://github.com/NVlabs/NVBit/releases/download";
@@ -9,13 +12,13 @@ fn create_dirs(path: impl AsRef<Path>) {
 }
 
 fn output_path() -> PathBuf {
-    PathBuf::from(std::env::var("OUT_DIR").expect("cargo out dir"))
+    PathBuf::from(env::var("OUT_DIR").expect("cargo out dir"))
         .canonicalize()
         .expect("canonicalize")
 }
 
 fn manifest_path() -> PathBuf {
-    PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("cargo manifest dir"))
+    PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("cargo manifest dir"))
         .canonicalize()
         .expect("canonicalize")
 }
@@ -244,13 +247,13 @@ fn main() {
     println!("cargo:rerun-if-env-changed=CUDA_LIBRARY_PATH");
     println!("cargo:rerun-if-env-changed=CARGO_FEATURE_UTILS");
 
-    let utils = std::env::var("CARGO_FEATURE_UTILS").is_ok();
+    let utils = env::var("CARGO_FEATURE_UTILS").is_ok();
     if utils {
         println!("cargo:rustc-cfg=nvbit_utils");
     }
 
-    let nvbit_version = std::env::var("NVBIT_VERSION").unwrap_or(NVBIT_VERSION.to_string());
-    let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").expect("cargo target arch");
+    let nvbit_version = env::var("NVBIT_VERSION").unwrap_or(NVBIT_VERSION.to_string());
+    let target_arch = env::var("CARGO_CFG_TARGET_ARCH").expect("cargo target arch");
 
     // check if the target architecture supports nvbit
     let supported = vec!["x86_64", "aarch64", "ppc64le"];
@@ -280,14 +283,18 @@ fn main() {
     build_nvbit_bridge([&nvbit_include_path]);
     build_utils_bridge([&nvbit_include_path]);
 
-    println!(
-        "cargo:rustc-link-search=native={}",
-        "/usr/lib/x86_64-linux-gnu"
-    );
+    // println!(
+    //     "cargo:rustc-link-search=native={}",
+    //     "/usr/lib/x86_64-linux-gnu"
+    // );
+
+    let cuda_paths = find_cuda::find_cuda();
+    println!("cargo:warning=cuda paths: {:?}", cuda_paths);
+    for cuda_path in &cuda_paths {
+        println!("cargo:rustc-link-search=native={}", cuda_path.display());
+    }
 
     println!("cargo:rustc-link-lib=static=nvbit");
     println!("cargo:rustc-link-lib=cuda");
     println!("cargo:rustc-link-lib=cudart");
-    // println!("cargo:rustc-link-lib=cudadevrt");
-    // println!("cargo:rustc-link-lib=stdc++");
 }
