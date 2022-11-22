@@ -2,6 +2,7 @@
 name = "nvbit-sys"
 version = "0.0.2"
 edition = "2021"
+publish = true
 links = "nvbit"
 build = "build.rs"
 

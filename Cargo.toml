@@ -2,7 +2,7 @@
 members = [
   "nvbit-sys",
   "nvbit-rs",
-  "examples/*",
+  "examples/*"
 ]
 
 [profile.dev]

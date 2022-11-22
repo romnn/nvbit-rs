@@ -2,6 +2,7 @@
 name = "nvbit-rs"
 version = "0.0.2"
 edition = "2021"
+publish = true
 
 description = "Idiomatic library for using the NVIDIA NVBIT binary instrumentation library"
 authors = ["romnn <contact@romnn.com>"]

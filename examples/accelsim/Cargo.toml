@@ -2,16 +2,17 @@
 name = "accelsim"
 version = "0.1.0"
 edition = "2021"
+publish = false
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
 nvbit-rs = { path = "../../nvbit-rs" }
-# so we can access the DEP_NVBIT_INCLUDE during the build
-nvbit-sys = { path = "../../nvbit-sys" }
 lazy_static = "1"
 rustacuda = "0.1"
+# so we can access the DEP_NVBIT_INCLUDE during the build
+nvbit-sys = { path = "../../nvbit-sys" }
 
 [build-dependencies]
 cc = "1"
