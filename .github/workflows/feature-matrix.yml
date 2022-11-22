@@ -24,4 +24,4 @@ jobs:
         id: compute-matrix
         run: |
           cargo install cargo-feature-combinations
-          echo "::set-output name=matrix::$(cargo feature-combinations matrix)"
+          echo "matrix=$(cargo feature-combinations matrix)" >> $GITHUB_OUTPUT

@@ -1,6 +1,6 @@
 #[allow(non_snake_case)]
 #[derive(Debug, Default, Clone)]
-pub struct InstrumentInstArgs {
+pub struct Args {
     pub opcode_id: std::ffi::c_int,
     pub vpc: u32,
     pub is_mem: bool,
@@ -19,12 +19,12 @@ pub struct InstrumentInstArgs {
     pub pstop_report: u64,
 }
 
-impl InstrumentInstArgs {
+impl Args {
     pub fn instrument<'a>(&self, instr: &mut nvbit_rs::Instruction<'a>) {
         instr.add_call_arg_guard_pred_val();
         instr.add_call_arg_const_val32(self.opcode_id.try_into().unwrap_or_default());
         instr.add_call_arg_const_val32(self.vpc);
-        instr.add_call_arg_const_val32(self.is_mem as u32);
+        instr.add_call_arg_const_val32(self.is_mem.try_into().unwrap_or_default());
         instr.add_call_arg_mref_addr64(self.addr.try_into().unwrap_or_default());
         instr.add_call_arg_const_val32(self.width.try_into().unwrap_or_default());
         instr.add_call_arg_const_val32(self.desReg.try_into().unwrap_or_default());

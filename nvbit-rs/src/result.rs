@@ -1,5 +1,5 @@
 use nvbit_sys::bindings;
-use std::{ffi, fmt};
+use std::{ptr, ffi, fmt};
 
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -66,15 +66,16 @@ pub enum CudaError {
 
 impl fmt::Display for CudaError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut ptr: *const ffi::c_char = std::ptr::null();
+        let mut msg_ptr: *const ffi::c_char = ptr::null();
         let msg = unsafe {
             bindings::cuGetErrorString(
                 Into::<bindings::cudaError_enum>::into(*self),
-                &mut ptr as *mut *const ffi::c_char,
+                ptr::addr_of_mut!(msg_ptr)
+                // &mut ptr as *mut *const ffi::c_char,
             )
             .into_result()
             .map_err(|_| fmt::Error)?;
-            ffi::CStr::from_ptr(ptr).to_str().unwrap()
+            ffi::CStr::from_ptr(msg_ptr).to_str().unwrap()
         };
         write!(f, "{}", msg)
     }
@@ -82,16 +83,17 @@ impl fmt::Display for CudaError {
 
 impl std::error::Error for CudaError {}
 
+#[allow(clippy::module_name_repetitions)]
 pub type CudaResult<T> = Result<T, CudaError>;
 
 pub(crate) trait IntoCudaResult {
     fn into_result(self) -> CudaResult<()>;
 }
 
-impl Into<bindings::cudaError_enum> for CudaError {
-    fn into(self: CudaError) -> bindings::cudaError_enum {
+impl From<CudaError> for bindings::cudaError_enum {
+    fn from(err: CudaError) -> Self {
         use bindings::cudaError_enum as ERR;
-        match self {
+        match err {
             CudaError::InvalidValue => ERR::CUDA_ERROR_INVALID_VALUE,
             CudaError::OutOfMemory => ERR::CUDA_ERROR_OUT_OF_MEMORY,
             CudaError::NotInitialized => ERR::CUDA_ERROR_NOT_INITIALIZED,

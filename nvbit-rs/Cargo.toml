@@ -26,3 +26,4 @@ documentation = "https://docs.rs/nvbit-rs"
 [dependencies]
 nvbit-sys = { path = "../nvbit-sys" }
 cxx = "1.0"
+thiserror = "1"

@@ -5,13 +5,13 @@ edition = "2021"
 publish = false
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["staticlib"]
 
 [dependencies]
 nvbit-rs = { path = "../../nvbit-rs" }
 lazy_static = "1"
 rustacuda = "0.1"
-# so we can access the DEP_NVBIT_INCLUDE during the build
+# so we can access the `DEP_NVBIT_INCLUDE` environment variable during the build
 nvbit-sys = { path = "../../nvbit-sys" }
 
 [build-dependencies]

@@ -3,12 +3,12 @@ mod find_cuda;
 use std::env;
 use std::path::{Path, PathBuf};
 
-static NVBIT_RELEASES: &'static str = "https://github.com/NVlabs/NVBit/releases/download";
-static NVBIT_VERSION: &'static str = "1.5.5";
+static NVBIT_RELEASES: &str = "https://github.com/NVlabs/NVBit/releases/download";
+static NVBIT_VERSION: &str = "1.5.5";
 
 fn create_dirs(path: impl AsRef<Path>) {
     let dir = path.as_ref().parent().expect("get parent dir");
-    std::fs::create_dir_all(&dir).expect("create dirs");
+    std::fs::create_dir_all(dir).expect("create dirs");
 }
 
 fn output_path() -> PathBuf {
@@ -17,6 +17,7 @@ fn output_path() -> PathBuf {
         .expect("canonicalize")
 }
 
+#[allow(dead_code)]
 fn manifest_path() -> PathBuf {
     PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("cargo manifest dir"))
         .canonicalize()
@@ -29,7 +30,7 @@ fn generate_nvbit_bindings<P: AsRef<Path>>(includes: impl IntoIterator<Item = P>
         "c++".to_string(),
         "-std=c++11".to_string(),
     ];
-    for inc in includes.into_iter() {
+    for inc in includes {
         clang_args.push(format!("-I{}", inc.as_ref().display()));
     }
     let builder = bindgen::Builder::default()
@@ -79,11 +80,11 @@ fn generate_nvbit_bindings<P: AsRef<Path>>(includes: impl IntoIterator<Item = P>
         .write_to_file(&bindings_path)
         .expect("writing bindings failed");
 
-    let debug_bindings_path = manifest_path().join("debug/nvbit_bindings.rs");
-    create_dirs(&debug_bindings_path);
-    bindings
-        .write_to_file(&debug_bindings_path)
-        .expect("writing bindings failed");
+    // let debug_bindings_path = manifest_path().join("debug/nvbit_bindings.rs");
+    // create_dirs(&debug_bindings_path);
+    // bindings
+    //     .write_to_file(&debug_bindings_path)
+    //     .expect("writing bindings failed");
 }
 
 fn decompress_tar_bz2(src: impl AsRef<Path>, dest: impl AsRef<Path>) {
@@ -112,14 +113,14 @@ fn download_nvbit(version: impl AsRef<str>, arch: impl AsRef<str>) -> PathBuf {
     // check if the archive already exists
     let force = false;
     if force || !nvbit_path.is_dir() {
-        let _ = std::fs::remove_file(&archive_path);
+        std::fs::remove_file(&archive_path).ok();
         let mut nvbit_release_archive_file = File::create(&archive_path).expect("create file");
         reqwest::blocking::get(nvbit_release_archive_url)
             .expect("get nvbit request")
             .copy_to(&mut nvbit_release_archive_file)
             .expect("copy nvbit archive");
 
-        let _ = std::fs::remove_file(&nvbit_path);
+        std::fs::remove_file(&nvbit_path).ok();
         decompress_tar_bz2(&archive_path, &nvbit_path);
     }
 
@@ -132,7 +133,7 @@ fn build_tool<P: AsRef<Path>>(includes: impl IntoIterator<Item = P>) {
     let nvbit_obj_link = output_path().join("nvbit_link.o");
 
     let mut cmd = std::process::Command::new("nvcc");
-    for inc in includes.into_iter() {
+    for inc in includes {
         cmd.arg(format!("-I{}", inc.as_ref().display()));
     }
     cmd.args([
@@ -167,7 +168,7 @@ fn build_utils_bridge<P: AsRef<Path>>(includes: impl IntoIterator<Item = P>) {
 
     let utils_obj = output_path().join("utils.o");
     let mut cmd = std::process::Command::new("nvcc");
-    for inc in includes.iter() {
+    for inc in &includes {
         cmd.arg(format!("-I{}", inc.as_ref().display()));
     }
     cmd.args([
@@ -198,7 +199,7 @@ fn build_utils_bridge<P: AsRef<Path>>(includes: impl IntoIterator<Item = P>) {
     assert!(result.status.success());
 
     let mut cmd = cxx_build::bridge("src/utils.rs");
-    for inc in includes.iter() {
+    for inc in &includes {
         cmd.flag(&format!("-I{}", inc.as_ref().display()));
     }
     cmd.compiler("nvcc")
@@ -220,7 +221,7 @@ fn build_utils_bridge<P: AsRef<Path>>(includes: impl IntoIterator<Item = P>) {
 fn build_nvbit_bridge<P: AsRef<Path>>(includes: impl IntoIterator<Item = P>) {
     let mut cmd = cxx_build::bridge("src/nvbit.rs");
     cmd.compiler("nvcc");
-    for inc in includes.into_iter() {
+    for inc in includes {
         cmd.flag(&format!("-I{}", inc.as_ref().display()));
     }
 
@@ -252,17 +253,17 @@ fn main() {
         println!("cargo:rustc-cfg=nvbit_utils");
     }
 
-    let nvbit_version = env::var("NVBIT_VERSION").unwrap_or(NVBIT_VERSION.to_string());
+    let nvbit_version = env::var("NVBIT_VERSION").unwrap_or_else(|_| NVBIT_VERSION.to_string());
     let target_arch = env::var("CARGO_CFG_TARGET_ARCH").expect("cargo target arch");
 
     // check if the target architecture supports nvbit
     let supported = vec!["x86_64", "aarch64", "ppc64le"];
-    if !supported.contains(&target_arch.as_str()) {
-        panic!(
-            "unsupported target architecture {} (nvbit supports {:?})",
-            target_arch, supported
-        );
-    }
+    assert!(
+        supported.contains(&target_arch.as_str()),
+        "unsupported target architecture {} (nvbit supports {:?})",
+        target_arch,
+        supported
+    );
 
     // download nvbit
     let vendored_nvbit = download_nvbit(nvbit_version, target_arch);
@@ -282,11 +283,6 @@ fn main() {
 
     build_nvbit_bridge([&nvbit_include_path]);
     build_utils_bridge([&nvbit_include_path]);
-
-    // println!(
-    //     "cargo:rustc-link-search=native={}",
-    //     "/usr/lib/x86_64-linux-gnu"
-    // );
 
     let cuda_paths = find_cuda::find_cuda();
     println!("cargo:warning=cuda paths: {:?}", cuda_paths);

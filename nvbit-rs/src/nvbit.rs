@@ -1,13 +1,20 @@
+#![allow(clippy::needless_lifetimes)]
+
 use super::{Context, Function, Instruction, CFG};
 use nvbit_sys::{bindings, nvbit};
 use std::ffi;
 
 /// Return nvbit version
+///
+/// # Panics
+/// Panics if the `nvbit` version string is not a valid UTF8 string.
+#[must_use]
 pub fn version() -> &'static str {
     std::str::from_utf8(bindings::NVBIT_VERSION).unwrap()
 }
 
-/// Get related functions for given CUfunction
+/// Get related functions for given `CUfunction`
+#[must_use]
 pub fn get_related_functions<'c, 'f>(
     ctx: &mut Context<'c>,
     func: &mut Function<'f>,
@@ -24,7 +31,8 @@ pub fn get_related_functions<'c, 'f>(
         .collect()
 }
 
-/// Get instructions composing the CUfunction
+/// Get instructions composing the `CUfunction`
+#[must_use]
 pub fn get_instrs<'c, 'f>(ctx: &mut Context<'c>, func: &mut Function<'f>) -> Vec<Instruction<'f>> {
     let c = ctx.as_mut_ptr();
     let f = func.as_mut_ptr();
@@ -39,6 +47,7 @@ pub fn get_instrs<'c, 'f>(ctx: &mut Context<'c>, func: &mut Function<'f>) -> Vec
 }
 
 /// Get control flow graph (CFG)
+#[must_use]
 pub fn get_cfg<'c, 'f>(ctx: &mut Context<'c>, func: &mut Function<'f>) -> CFG<'f> {
     // const CFG_t& nvbit_get_CFG(CUcontext ctx, CUfunction func);
     // TODO
@@ -46,13 +55,15 @@ pub fn get_cfg<'c, 'f>(ctx: &mut Context<'c>, func: &mut Function<'f>) -> CFG<'f
     CFG::default()
 }
 
-/// Get the function name from a CUfunction
+/// Get the function name from a `CUfunction`
+#[must_use]
 pub fn get_func_name<'c, 'f>(ctx: &mut Context<'c>, func: &mut Function<'f>) -> &'f str {
     let func_name: *const ffi::c_char =
         unsafe { bindings::nvbit_get_func_name(ctx.as_mut_ptr(), func.as_mut_ptr(), false) };
     unsafe { ffi::CStr::from_ptr(func_name).to_str().unwrap_or_default() }
 }
 
+/// Line information of an instruction.
 #[derive(Clone, Debug, Default)]
 pub struct LineInfo {
     pub line: u32,
@@ -63,7 +74,8 @@ pub struct LineInfo {
 /// Get line information for a particular instruction offset if available.
 ///
 /// Note: binary must be compiled with --generate-line-info (-lineinfo)
-pub fn nvbit_get_line_info<'c, 'f>(
+#[must_use]
+pub fn get_line_info<'c, 'f>(
     ctx: &mut Context<'c>,
     func: &mut Function<'f>,
     offset: u32,
@@ -102,16 +114,19 @@ pub fn nvbit_get_line_info<'c, 'f>(
 }
 
 /// Get the SM family
+#[must_use]
 pub fn get_sm_family<'c>(ctx: &mut Context<'c>) -> u32 {
     unsafe { bindings::nvbit_get_sm_family(ctx.as_mut_ptr()) }
 }
 
 /// Get PC address of the function
+#[must_use]
 pub fn get_func_addr<'f>(func: &mut Function<'f>) -> u64 {
     unsafe { bindings::nvbit_get_func_addr(func.as_mut_ptr()) }
 }
 
-/// Returns true if function is a kernel (i.e. __global__ )
+/// Returns true if function is a kernel (i.e. `__global__`)
+#[must_use]
 pub fn is_func_kernel<'c, 'f>(ctx: &mut Context<'c>, func: &mut Function<'f>) -> bool {
     unsafe { bindings::nvbit_is_func_kernel(ctx.as_mut_ptr(), func.as_mut_ptr()) }
 }
@@ -120,25 +135,28 @@ pub fn is_func_kernel<'c, 'f>(ctx: &mut Context<'c>, func: &mut Function<'f>) ->
 // TODO
 // std::vector<int> nvbit_get_kernel_argument_sizes(CUfunction func);
 
-/// Returns shmem base address from CUcontext.
+/// Returns shmem base address from `CUcontext`.
 ///
-/// Shmem range is [shmem_base_addr, shmem_base_addr+16MB) and
+/// Shmem range is [`shmem_base_addr`, `shmem_base_addr`+16MB) and
 /// the base address is 16MB aligned.
+#[must_use]
 pub fn get_shmem_base_addr<'c>(ctx: &mut Context<'c>) -> u64 {
     unsafe { bindings::nvbit_get_shmem_base_addr(ctx.as_mut_ptr()) }
 }
 
-/// Returns local memory base address from CUcontext.
+/// Returns local memory base address from `CUcontext`.
 ///
-/// Local mem range is [shmem_base_addr, shmem_base_addr+16MB) and
+/// Local mem range is [`shmem_base_addr`, `shmem_base_addr`+16MB) and
 /// the base address is 16MB aligned.
+#[must_use]
 pub fn get_local_mem_base_addr<'c>(ctx: &mut Context<'c>) -> u64 {
     unsafe { bindings::nvbit_get_local_mem_base_addr(ctx.as_mut_ptr()) }
 }
 
 /// Run instrumented on original function
 ///
-/// (and its related functions based on flag value)
+/// Also enables instrumentation for its related functions
+/// if the `related` flag is set.
 pub fn enable_instrumented<'c, 'f>(
     ctx: &mut Context<'c>,
     func: &mut Function<'f>,
@@ -146,16 +164,16 @@ pub fn enable_instrumented<'c, 'f>(
     related: bool,
 ) {
     unsafe {
-        bindings::nvbit_enable_instrumented(ctx.as_mut_ptr(), func.as_mut_ptr(), enable, related)
+        bindings::nvbit_enable_instrumented(ctx.as_mut_ptr(), func.as_mut_ptr(), enable, related);
     };
 }
 
 /// Set arguments at launch time,
 /// that will be loaded on input argument of the instrumentation function
-pub fn nvbit_set_at_launch<'c, 'f, T>(
+pub fn set_at_launch<'c, 'f, T>(
     _ctx: &mut Context<'c>,
     _func: &mut Function<'f>,
-    _args: T,
+    _args: &T,
     _nbytes: u32,
 ) {
     // todo
@@ -169,20 +187,24 @@ pub fn nvbit_set_at_launch<'c, 'f, T>(
 ///  * trigger any call backs even if executing CUDA events of kernel launches.
 ///  * Multiple pthreads can be registered one after the other.
 #[cfg(unix)]
-pub fn set_tool_thread<T>(handle: std::thread::JoinHandle<T>) {
+pub fn set_tool_thread<T>(handle: &std::thread::JoinHandle<T>) {
     use std::os::unix::thread::JoinHandleExt;
     unsafe { bindings::nvbit_set_tool_pthread(handle.as_pthread_t()) };
 }
 
 /// Notify nvbit of a pthread no longer used by the tool.
 #[cfg(unix)]
-pub fn unset_tool_thread<T>(handle: std::thread::JoinHandle<T>) {
+pub fn unset_tool_thread<T>(handle: &std::thread::JoinHandle<T>) {
     use std::os::unix::thread::JoinHandleExt;
     unsafe { bindings::nvbit_unset_tool_pthread(handle.as_pthread_t()) };
 }
 
 /// Set nvdisasm
-pub fn nvbit_set_nvdisasm(asm: impl AsRef<str>) {
+///
+/// # Panics
+/// Panics if the supplied assembly string is not a valid C string,
+/// e.g. it contains an internal 0 byte.
+pub fn set_nvdisasm(asm: impl AsRef<str>) {
     let asm = ffi::CString::new(asm.as_ref()).unwrap();
     unsafe { bindings::nvbit_set_nvdisasm(asm.as_ptr()) };
 }

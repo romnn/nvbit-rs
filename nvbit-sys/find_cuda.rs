@@ -9,15 +9,15 @@ fn cuda_library_path() -> Vec<PathBuf> {
         } else {
             ":"
         };
-        path.split(split_char).map(|s| PathBuf::from(s)).collect()
+        path.split(split_char).map(PathBuf::from).collect()
     } else {
         vec![]
     }
 }
 
-pub fn find_cuda_windows() -> Vec<PathBuf> {
+fn find_cuda_windows() -> Vec<PathBuf> {
     let candidates = cuda_library_path();
-    if candidates.len() > 0 {
+    if candidates.is_empty() {
         return candidates;
     }
     if let Ok(path) = env::var("CUDA_PATH") {
@@ -30,7 +30,7 @@ pub fn find_cuda_windows() -> Vec<PathBuf> {
         let target = env::var("TARGET").expect("cargo target");
 
         // targets use '-' separators. e.g. x86_64-pc-windows-msvc
-        let target_components: Vec<_> = target.as_str().split("-").collect();
+        let target_components: Vec<_> = target.as_str().split('-').collect();
 
         // check that we're building for Windows. This code assumes that the layout in
         // CUDA_PATH matches Windows.
@@ -44,14 +44,19 @@ pub fn find_cuda_windows() -> Vec<PathBuf> {
 
         // sanity check that the second component of 'target' is "pc"
         debug_assert_eq!(
-            "pc", target_components[1],
+            target_components.get(1).copied(),
+            Some("pc"),
             "Expected a Windows target to have the second component be 'pc'. Target: {}",
             target
         );
 
         // x86_64 should use the libs in the "lib/x64" directory.
-        let lib_path = match target_components[0] {
-            "x86_64" => "x64",
+        let lib_path = match target_components.first().copied() {
+            Some("x86_64") => "x64",
+            None => {
+                println!("cargo:warning=missing architecture");
+                return vec![];
+            }
             _ => {
                 println!(
                     "cargo:warning=unsupported architecture {}",
@@ -68,13 +73,13 @@ pub fn find_cuda_windows() -> Vec<PathBuf> {
     vec![]
 }
 
-pub fn find_cuda_unix() -> Vec<PathBuf> {
+fn find_cuda_unix() -> Vec<PathBuf> {
     let mut candidates = cuda_library_path();
     candidates.extend([PathBuf::from("/opt/cuda"), PathBuf::from("/usr/local/cuda")]);
     candidates.extend(
         glob::glob("/usr/local/cuda-*")
             .expect("glob cuda")
-            .filter_map(|p| p.ok()),
+            .filter_map(Result::ok),
     );
 
     let mut valid_paths = vec![];

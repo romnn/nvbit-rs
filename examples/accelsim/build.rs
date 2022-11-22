@@ -1,17 +1,20 @@
 use std::path::PathBuf;
 
+#[must_use]
 pub fn nvbit_include() -> PathBuf {
     PathBuf::from(std::env::var("DEP_NVBIT_INCLUDE").expect("nvbit include path"))
         .canonicalize()
         .expect("canonicalize path")
 }
 
+#[must_use]
 pub fn output_path() -> PathBuf {
     PathBuf::from(std::env::var("OUT_DIR").expect("cargo out dir"))
         .canonicalize()
         .expect("canonicalize path")
 }
 
+#[must_use]
 pub fn manifest_path() -> PathBuf {
     PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("cargo manifest dir"))
         .canonicalize()

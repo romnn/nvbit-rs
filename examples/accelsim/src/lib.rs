@@ -1,3 +1,5 @@
+#![allow(clippy::missing_panics_doc)]
+
 mod instrument_inst;
 
 use lazy_static::lazy_static;
@@ -8,7 +10,13 @@ use std::collections::{HashMap, HashSet};
 use std::ffi;
 use std::sync::{Arc, Mutex, RwLock};
 
-#[allow(warnings, dead_code)]
+#[allow(
+    warnings,
+    clippy::all,
+    clippy::pedantic,
+    clippy::restriction,
+    clippy::nursery
+)]
 mod common {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
@@ -41,11 +49,9 @@ struct Instrumentor<'c> {
 impl<'c> Instrumentor<'c> {
     fn new(ctx: nvbit_rs::Context<'c>) -> Self {
         let mut dev_channel = nvbit_rs::DeviceChannel::new();
-        let host_channel = Arc::new(Mutex::new(HostChannel::<inst_trace_t>::new(
-            42,
-            CHANNEL_SIZE,
-            &mut dev_channel,
-        )));
+        let host_channel = Arc::new(Mutex::new(
+            HostChannel::<inst_trace_t>::new(42, CHANNEL_SIZE, &mut dev_channel).unwrap(),
+        ));
 
         let rx = host_channel.lock().unwrap().read();
         let host_channel_clone = host_channel.clone();
@@ -109,6 +115,133 @@ pub extern "C" fn nvbit_at_init() {
 }
 
 impl<'c> Instrumentor<'c> {
+    fn instrument_instruction<'f>(&self, instr: &mut nvbit_rs::Instruction<'f>) {
+        // instr.print_decoded();
+
+        let mut opcode_to_id_map: HashMap<String, usize> = HashMap::new();
+        let mut id_to_opcode_map: HashMap<usize, String> = HashMap::new();
+
+        let opcode = instr.opcode().expect("has opcode");
+
+        if !opcode_to_id_map.contains_key(opcode) {
+            let opcode_id = opcode_to_id_map.len();
+            opcode_to_id_map.insert(opcode.to_string(), opcode_id);
+            id_to_opcode_map.insert(opcode_id, opcode.to_string());
+        }
+
+        let opcode_id = opcode_to_id_map[opcode];
+
+        instr.insert_call("instrument_inst", nvbit_rs::InsertionPoint::Before);
+
+        let mut inst_args = instrument_inst::Args {
+            opcode_id: opcode_id.try_into().unwrap(),
+            vpc: instr.offset(),
+            ..instrument_inst::Args::default()
+        };
+
+        // check all operands
+        // For now, we ignore constant, TEX, predicates and unified registers.
+        // We only report vector registers
+        let mut src_oprd: [ffi::c_int; common::MAX_SRC as usize] = [-1; common::MAX_SRC as usize];
+        let mut src_num: usize = 0;
+        let mut dst_oprd: ffi::c_int = -1;
+        let mut mem_oper_idx: ffi::c_int = -1;
+
+        // find dst reg and handle the special case if the oprd[0] is mem
+        // (e.g. store and RED)
+        let num_operands = instr.num_operands();
+        if num_operands > 0 {
+            let first_operand = instr.operand(0).unwrap().into_owned();
+            match first_operand.type_ {
+                bindings::InstrType_OperandType::REG => {
+                    dst_oprd = unsafe { first_operand.u.reg.num };
+                }
+                bindings::InstrType_OperandType::MREF => {
+                    src_oprd[0] = unsafe { first_operand.u.mref.ra_num };
+                    mem_oper_idx = 0;
+                    src_num += 1;
+                }
+                _ => {
+                    // skip anything else (constant and predicates)
+                }
+            }
+        }
+
+        // find src regs and mem
+        for i in 1..(common::MAX_SRC.min(num_operands.try_into().unwrap())) {
+            assert!(i < common::MAX_SRC);
+            assert!((i as usize) < num_operands);
+            let op = instr.operand(i as usize).unwrap().into_owned();
+            match op.type_ {
+                bindings::InstrType_OperandType::MREF => {
+                    // mem is found
+                    assert!(src_num < common::MAX_SRC as usize);
+                    src_oprd[src_num] = unsafe { op.u.mref.ra_num };
+                    src_num += 1;
+                    // TODO: handle LDGSTS with two mem refs
+                    assert!(mem_oper_idx == -1); // ensure one memory operand per inst
+                    mem_oper_idx += 1;
+                }
+                bindings::InstrType_OperandType::REG => {
+                    // reg is found
+                    assert!(src_num < common::MAX_SRC as usize);
+                    src_oprd[src_num] = unsafe { op.u.reg.num };
+                    src_num += 1;
+                }
+                _ => {
+                    // skip anything else (constant and predicates)
+                }
+            };
+        }
+
+        // mem addresses info
+        if mem_oper_idx >= 0 {
+            inst_args.is_mem = true;
+            inst_args.addr = 0;
+            inst_args.width = instr.size().try_into().unwrap();
+        } else {
+            inst_args.is_mem = false;
+            inst_args.addr = 1; // todo: was -1
+            inst_args.width = 1; // todo: was -1
+        }
+
+        // reg info
+        inst_args.desReg = dst_oprd;
+        // we set the default value to -1,
+        // however that will become 0 using unwrap_or_default()
+        inst_args.srcReg1 = src_oprd[0];
+        inst_args.srcReg2 = src_oprd[1];
+        inst_args.srcReg3 = src_oprd[2];
+        inst_args.srcReg4 = src_oprd[3];
+        inst_args.srcReg5 = src_oprd[4];
+        inst_args.srcNum = src_num.try_into().unwrap();
+
+        inst_args.pchannel_dev = self.dev_channel.lock().unwrap().as_mut_ptr() as u64;
+
+        inst_args.ptotal_dynamic_instr_counter = self
+            .ptotal_dynamic_instr_counter
+            .lock()
+            .unwrap()
+            .as_unified_ptr()
+            .as_raw_mut() as u64;
+
+        inst_args.preported_dynamic_instr_counter = self
+            .preported_dynamic_instr_counter
+            .lock()
+            .unwrap()
+            .as_unified_ptr()
+            .as_raw_mut() as u64;
+
+        inst_args.pstop_report = self
+            .pstop_report
+            .lock()
+            .unwrap()
+            .as_unified_ptr()
+            .as_raw_mut() as u64;
+
+        inst_args.instrument(instr);
+    }
+
     fn instrument_function_if_needed<'f>(&self, func: &mut nvbit_rs::Function<'f>) {
         let mut related_functions =
             nvbit_rs::get_related_functions(&mut self.ctx.lock().unwrap(), func);
@@ -137,138 +270,13 @@ impl<'c> Instrumentor<'c> {
             let mut instr_count: u32 = 0;
 
             // iterate on all the static instructions in the function
-            for instr in instrs.iter_mut() {
+            for instr in &mut instrs {
+                instr_count += 1;
                 if instr_count < self.instr_begin_interval || instr_count >= self.instr_end_interval
                 {
-                    instr_count += 1;
                     continue;
                 }
-
-                // instr.print_decoded();
-
-                let mut opcode_to_id_map: HashMap<String, usize> = HashMap::new();
-                let mut id_to_opcode_map: HashMap<usize, String> = HashMap::new();
-
-                let opcode = instr.opcode().expect("has opcode");
-
-                if !opcode_to_id_map.contains_key(opcode) {
-                    let opcode_id = opcode_to_id_map.len();
-                    opcode_to_id_map.insert(opcode.to_string(), opcode_id);
-                    id_to_opcode_map.insert(opcode_id, opcode.to_string());
-                }
-
-                let opcode_id = opcode_to_id_map[opcode];
-
-                instr.insert_call("instrument_inst", nvbit_rs::InsertionPoint::Before);
-
-                let mut inst_args = instrument_inst::InstrumentInstArgs::default();
-
-                inst_args.opcode_id = opcode_id as i32;
-
-                inst_args.vpc = instr.offset();
-
-                // check all operands.
-                // For now, we ignore constant, TEX, predicates and unified registers.
-                // We only report vector registers
-                let mut src_oprd: [ffi::c_int; common::MAX_SRC as usize] =
-                    [-1; common::MAX_SRC as usize];
-                let mut src_num: usize = 0;
-                let mut dst_oprd: ffi::c_int = -1;
-                let mut mem_oper_idx: ffi::c_int = -1;
-
-                // find dst reg and handle the special case if the oprd[0] is mem
-                // (e.g. store and RED)
-                let num_operands = instr.num_operands();
-                if num_operands > 0 {
-                    let first_operand = instr.operand(0).unwrap().test();
-                    match first_operand.type_ {
-                        bindings::InstrType_OperandType::REG => {
-                            dst_oprd = unsafe { first_operand.u.reg.num };
-                        }
-                        bindings::InstrType_OperandType::MREF => {
-                            src_oprd[0] = unsafe { first_operand.u.mref.ra_num };
-                            mem_oper_idx = 0;
-                            src_num += 1;
-                        }
-                        _ => {
-                            // skip anything else (constant and predicates)
-                        }
-                    }
-                }
-
-                // find src regs and mem
-                for i in 1..(common::MAX_SRC.min(num_operands as u32)) {
-                    assert!(i < common::MAX_SRC);
-                    assert!(i < num_operands as u32);
-                    let op = instr.operand(i as usize).unwrap().test();
-                    match op.type_ {
-                        bindings::InstrType_OperandType::MREF => {
-                            // mem is found
-                            assert!(src_num < common::MAX_SRC as usize);
-                            src_oprd[src_num] = unsafe { op.u.mref.ra_num };
-                            src_num += 1;
-                            // TODO: handle LDGSTS with two mem refs
-                            assert!(mem_oper_idx == -1); // ensure one memory operand per inst
-                            mem_oper_idx += 1;
-                        }
-                        bindings::InstrType_OperandType::REG => {
-                            // reg is found
-                            assert!(src_num < common::MAX_SRC as usize);
-                            src_oprd[src_num] = unsafe { op.u.reg.num };
-                            src_num += 1;
-                        }
-                        _ => {
-                            // skip anything else (constant and predicates)
-                        }
-                    };
-                }
-
-                // mem addresses info
-                if mem_oper_idx >= 0 {
-                    inst_args.is_mem = true;
-                    inst_args.addr = 0;
-                    inst_args.width = instr.size() as i32;
-                } else {
-                    inst_args.is_mem = false;
-                    inst_args.addr = 1; // todo: was -1
-                    inst_args.width = 1; // todo: was -1
-                }
-
-                // reg info
-                inst_args.desReg = dst_oprd;
-                // we set the default value to -1
-                inst_args.srcReg1 = src_oprd[0];
-                inst_args.srcReg2 = src_oprd[1];
-                inst_args.srcReg3 = src_oprd[2];
-                inst_args.srcReg4 = src_oprd[3];
-                inst_args.srcReg5 = src_oprd[4];
-                inst_args.srcNum = src_num as i32;
-
-                inst_args.pchannel_dev = self.dev_channel.lock().unwrap().as_mut_ptr() as u64;
-
-                inst_args.ptotal_dynamic_instr_counter = self
-                    .ptotal_dynamic_instr_counter
-                    .lock()
-                    .unwrap()
-                    .as_unified_ptr()
-                    .as_raw_mut() as u64;
-
-                inst_args.preported_dynamic_instr_counter =
-                    self.preported_dynamic_instr_counter
-                        .lock()
-                        .unwrap()
-                        .as_unified_ptr()
-                        .as_raw_mut() as u64;
-
-                inst_args.pstop_report = self
-                    .pstop_report
-                    .lock()
-                    .unwrap()
-                    .as_unified_ptr()
-                    .as_raw_mut() as u64;
-
-                inst_args.instrument(instr);
-                instr_count += 1;
+                self.instrument_instruction(instr);
             }
         }
     }
@@ -276,7 +284,8 @@ impl<'c> Instrumentor<'c> {
 
 #[no_mangle]
 #[inline(never)]
-pub extern "C" fn nvbit_at_cuda_event(
+#[allow(clippy::missing_safety_doc)]
+pub unsafe extern "C" fn nvbit_at_cuda_event(
     ctx: nvbit_rs::Context<'static>,
     is_exit: ffi::c_int,
     cbid: bindings::nvbit_api_cuda_t,
@@ -323,10 +332,10 @@ impl<'c> Instrumentor<'c> {
         //   }
         // }
 
-        if self.active_from_start && self.dynamic_kernel_limit_start <= 1 {
-            *self.active_region.lock().unwrap() = true;
-        } else {
-            if self.active_from_start {
+        if self.active_from_start {
+            if self.dynamic_kernel_limit_start <= 1 {
+                *self.active_region.lock().unwrap() = true;
+            } else {
                 *self.active_region.lock().unwrap() = false;
             }
         }
@@ -360,8 +369,9 @@ impl<'c> Instrumentor<'c> {
         match cbid {
             bindings::nvbit_api_cuda_t::API_CUDA_cuMemcpyHtoD_v2 => {
                 if !is_exit {
-                    let p: &mut bindings::cuMemcpyHtoD_v2_params =
-                        unsafe { &mut *(params as *mut bindings::cuMemcpyHtoD_v2_params) };
+                    let p = unsafe { &mut *params.cast::<bindings::cuMemcpyHtoD_v2_params>() };
+                    // let p: &mut bindings::cuMemcpyHtoD_v2_params =
+                    //     unsafe { &mut *(params as *mut bindings::cuMemcpyHtoD_v2_params) };
 
                     dbg!(&p);
                     // char buffer[1024];
@@ -374,12 +384,33 @@ impl<'c> Instrumentor<'c> {
             }
             bindings::nvbit_api_cuda_t::API_CUDA_cuLaunchKernel_ptsz
             | bindings::nvbit_api_cuda_t::API_CUDA_cuLaunchKernel => {
-                let p: &mut bindings::cuLaunchKernel_params =
-                    unsafe { &mut *(params as *mut bindings::cuLaunchKernel_params) };
+                let p = unsafe { &mut *params.cast::<bindings::cuLaunchKernel_params>() };
                 dbg!(&p);
                 let mut pf = nvbit_rs::Function::new(p.f);
 
-                if !is_exit {
+                if is_exit {
+                    *self.skip_flag.lock().unwrap() = true;
+                    unsafe {
+                        common::flush_channel(self.dev_channel.lock().unwrap().as_mut_ptr().cast());
+                    };
+
+                    *self.skip_flag.lock().unwrap() = false;
+
+                    // while *self.recv_thread_receiving.lock().unwrap() {
+                    //     std::thread::yield_now();
+                    // }
+
+                    // if !stop_report {
+                    //     fclose(resultsFile);
+                    // }
+
+                    if self.active_from_start
+                        && self.dynamic_kernel_limit_end > 0
+                        && *self.kernelid.lock().unwrap() > self.dynamic_kernel_limit_end
+                    {
+                        *self.active_region.lock().unwrap() = false;
+                    }
+                } else {
                     if self.active_from_start
                         && self.dynamic_kernel_limit_start > 0
                         && *self.kernelid.lock().unwrap() == self.dynamic_kernel_limit_start
@@ -454,31 +485,6 @@ impl<'c> Instrumentor<'c> {
                     // }
 
                     *self.kernelid.lock().unwrap() += 1;
-                } else {
-                    // is exit
-                    *self.skip_flag.lock().unwrap() = true;
-                    unsafe {
-                        common::flush_channel(
-                            self.dev_channel.lock().unwrap().as_mut_ptr() as *mut _
-                        )
-                    };
-
-                    *self.skip_flag.lock().unwrap() = false;
-
-                    // while *self.recv_thread_receiving.lock().unwrap() {
-                    //     std::thread::yield_now();
-                    // }
-
-                    // if !stop_report {
-                    //     fclose(resultsFile);
-                    // }
-
-                    if self.active_from_start
-                        && self.dynamic_kernel_limit_end > 0
-                        && *self.kernelid.lock().unwrap() > self.dynamic_kernel_limit_end
-                    {
-                        *self.active_region.lock().unwrap() = false;
-                    }
                 }
             }
             bindings::nvbit_api_cuda_t::API_CUDA_cuProfilerStart => {
@@ -510,6 +516,7 @@ pub extern "C" fn nvbit_at_ctx_init(ctx: nvbit_rs::Context<'static>) {
         .or_insert_with(|| Instrumentor::new(ctx));
 }
 
+/// NVBIT callback when CUDA context is terminated.
 #[no_mangle]
 #[inline(never)]
 pub extern "C" fn nvbit_at_ctx_term(ctx: nvbit_rs::Context<'static>) {
