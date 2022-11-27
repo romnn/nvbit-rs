@@ -7,6 +7,7 @@ publish = true
 description = "Idiomatic library for using the NVIDIA NVBIT binary instrumentation library"
 authors = ["romnn <contact@romnn.com>"]
 license-file = "LICENSE"
+documentation = "https://docs.rs/nvbit-rs"
 homepage = "https://github.com/romnn/nvbit-rs"
 repository = "https://github.com/romnn/nvbit-rs"
 categories = [
@@ -21,7 +22,6 @@ keywords = [
   "nvidia",
   "ffi",
 ]
-documentation = "https://docs.rs/nvbit-rs"
 
 [dependencies]
 nvbit-sys = { path = "../nvbit-sys" }

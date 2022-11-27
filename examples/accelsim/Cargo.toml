@@ -12,6 +12,7 @@ nvbit-rs = { path = "../../nvbit-rs" }
 lazy_static = "1"
 rustacuda = "0.1"
 # so we can access the `DEP_NVBIT_INCLUDE` environment variable during the build
+# this is a problem because there is no version field here :(
 nvbit-sys = { path = "../../nvbit-sys" }
 
 [build-dependencies]

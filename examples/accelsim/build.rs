@@ -40,6 +40,13 @@ fn generate_bindings() {
 }
 
 fn main() {
+    // for (key, value) in std::env::vars() {
+    //     println!("cargo::warning={key}: {value}");
+    //     if key.to_lowercase().contains("dep_") {
+    //         println!("cargo::warning={key}: {value}");
+    //     }
+    // }
+
     // rerun if the build script changes
     println!("cargo:rerun-if-changed=build.rs");
 

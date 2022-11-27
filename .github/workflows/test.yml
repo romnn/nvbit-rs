@@ -46,3 +46,10 @@ jobs:
           --package "${{ matrix.package.name }}"
           --features "${{ matrix.package.features }}"
           --all-targets
+
+      - name: Validate packages
+        uses: romnn/publish-crates@master
+        with:
+          version: latest
+          no-verify: true
+          dry-run: true
