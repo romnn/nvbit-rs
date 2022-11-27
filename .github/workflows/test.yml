@@ -48,7 +48,7 @@ jobs:
           --all-targets
 
       - name: Validate packages
-        uses: romnn/publish-crates@master
+        uses: romnn/publish-crates@main
         with:
           version: latest
           no-verify: true
