@@ -5,10 +5,11 @@ edition = "2021"
 publish = true
 links = "nvbit"
 build = "build.rs"
-
-description = "Native bindings to the NVIDIA NVBIT binary instrumentation library"
 authors = ["romnn <contact@romnn.com>"]
-license-file = "LICENSE"
+description = "Native bindings to the NVIDIA NVBIT binary instrumentation library"
+license-file = "../LICENSE"
+readme = "../README.md"
+documentation = "https://docs.rs/nvbit-sys"
 homepage = "https://github.com/romnn/nvbit-rs"
 repository = "https://github.com/romnn/nvbit-rs"
 categories = [
@@ -23,7 +24,6 @@ keywords = [
   "nvidia",
   "ffi",
 ]
-documentation = "https://docs.rs/nvbit-sys"
 exclude = [
   "nvbit_release/*",
   "debug/*",

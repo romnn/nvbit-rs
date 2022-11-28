@@ -3,10 +3,10 @@ name = "nvbit-rs"
 version = "0.0.4"
 edition = "2021"
 publish = true
-
-description = "Idiomatic library for using the NVIDIA NVBIT binary instrumentation library"
 authors = ["romnn <contact@romnn.com>"]
-license-file = "LICENSE"
+description = "Idiomatic library for using the NVIDIA NVBIT binary instrumentation library"
+license-file = "../LICENSE"
+readme = "../README.md"
 documentation = "https://docs.rs/nvbit-rs"
 homepage = "https://github.com/romnn/nvbit-rs"
 repository = "https://github.com/romnn/nvbit-rs"
@@ -22,6 +22,7 @@ keywords = [
   "nvidia",
   "ffi",
 ]
+exclude = []
 
 [dependencies]
 nvbit-sys = { path = "../nvbit-sys" }
