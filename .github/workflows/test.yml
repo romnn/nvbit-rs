@@ -5,7 +5,7 @@ on: [push, pull_request]
 jobs:
   feature-matrix:
     uses: ./.github/workflows/feature-matrix.yml
-
+  
   test:
     name: test ${{ matrix.package.name }} (${{ matrix.package.features }})
     runs-on: ubuntu-latest
@@ -47,9 +47,25 @@ jobs:
           --features "${{ matrix.package.features }}"
           --all-targets
 
+  publish:
+    name: publish (dry-run)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Install CUDA
+        uses: Jimver/cuda-toolkit@v0.2.8
+        id: cuda-toolkit
+        with:
+          cuda: '11.7.0'
+          linux-local-args: '["--driver", "--toolkit"]'
+
       - name: Publish crates (dry-run)
         uses: romnn/publish-crates@main
         with:
-          version: latest
-          no-verify: true
           dry-run: true
+          resolve-versions: true

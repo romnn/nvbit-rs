@@ -22,14 +22,8 @@ jobs:
           cuda: '11.7.0'
           linux-local-args: '["--driver", "--toolkit"]'
 
-      # - name: Publish crates
-      #   uses: katyo/publish-crates@v1
-      #   with:
-      #     registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-
       - name: Publish crates
         uses: romnn/publish-crates@main
         with:
-          version: latest
-          no-verify: true
-          dry-run: true
+          registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          resolve-versions: true
