@@ -47,7 +47,7 @@ jobs:
           --features "${{ matrix.package.features }}"
           --all-targets
 
-      - name: Validate packages
+      - name: Publish crates (dry-run)
         uses: romnn/publish-crates@main
         with:
           version: latest
