@@ -1,5 +1,6 @@
 .DS_Store
 Cargo.lock
 /target
+/buildcache
 /examples/**/*.so
 cuda.run

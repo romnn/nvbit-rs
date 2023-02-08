@@ -1,6 +1,11 @@
 ## nvbit-rs
 
 ```bash
+docker build --platform linux/amd64 -t builder .
+docker run --rm -i -v "$PWD":/src -v "$PWD"/buildcache:/cache builder cargo build
+```
+
+```bash
 nvcc -D_FORCE_INLINES -dc -c -std=c++11 -I../nvbit_release/core -Xptxas -cloning=no -Xcompiler -w  -O3 -Xcompiler -fPIC tracer_tool.cu -o tracer_tool.o
 
 nvcc -D_FORCE_INLINES -I../nvbit_release/core -maxrregcount=24 -Xptxas -astoolspatch --keep-device-functions -c inject_funcs.cu -o inject_funcs.o
