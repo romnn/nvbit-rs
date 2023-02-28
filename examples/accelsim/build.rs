@@ -21,6 +21,22 @@ pub fn manifest_path() -> PathBuf {
         .expect("canonicalize path")
 }
 
+#[derive(Debug)]
+struct ParseCallbacks {}
+
+impl bindgen::callbacks::ParseCallbacks for ParseCallbacks {
+    fn add_derives(&self, info: &str) -> Vec<String> {
+        if info == "inst_trace_t" {
+            vec![
+                "serde::Serialize".to_string(),
+                "serde::Deserialize".to_string(),
+            ]
+        } else {
+            vec![]
+        }
+    }
+}
+
 fn generate_bindings() {
     let builder = bindgen::Builder::default()
         .clang_args([
@@ -31,6 +47,8 @@ fn generate_bindings() {
         ])
         .generate_comments(false)
         .rustified_enum(".*")
+        .rustfmt_bindings(true)
+        .parse_callbacks(Box::new(ParseCallbacks {}))
         .header("instrumentation/common.h");
 
     let bindings = builder.generate().expect("generating bindings");

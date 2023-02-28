@@ -1,5 +1,23 @@
 ## nvbit-rs
 
+TODO today:
+- implement messagepack and json trace dumping
+- clean up the nvbit api such that there the context is managed in nvbit-rs and the hooks are just functions
+
+##### Accelsim reference
+```bash
+make -B -j -C ./tracer_nvbit
+LD_PRELOAD=./tracer_nvbit/tracer_tool/tracer_tool.so ./nvbit-sys/nvbit_release/test-apps/vectoradd/vectoradd
+```
+ This will generate files: `./tracer_nvbit/tracer_tool/traces/kernelslist` and `./tracer_nvbit/tracer_tool/traces/stats.csv`.
+
+##### Our implementation
+```bash
+cargo build --release
+make -B -j -C ./examples/accelsim
+LD_PRELOAD=./examples/accelsim/tracer.so ./nvbit-sys/nvbit_release/test-apps/vectoradd/vectoradd
+```
+
 ```bash
 docker build --platform linux/amd64 -t builder .
 docker run --rm -i -v "$PWD":/src -v "$PWD"/buildcache:/cache builder cargo build

@@ -28,7 +28,7 @@ __global__ void vecAdd(double *a, double *b, double *c, int n) {
 
 int main(int argc, char *argv[]) {
     // Size of vectors
-    int n = 100000;
+    int n = 100; // used to be 100 000
     if (argc > 1) n = atoi(argv[1]);
 
     // Host input vectors

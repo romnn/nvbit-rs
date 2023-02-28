@@ -24,7 +24,22 @@ keywords = [
 ]
 exclude = []
 
+[features]
+default  = [
+  "stream",
+]
+
+stream = ["dep:serde", "dep:serde_json", "dep:rmp-serde"]
+
 [dependencies]
 nvbit-sys = { path = "../nvbit-sys" }
 cxx = "1.0"
 thiserror = "1"
+
+serde = { version = "1", optional = true}
+serde_json = { version = "1", optional = true}
+rmp-serde = { version = "1", optional = true}
+
+
+[dev-dependencies]
+anyhow = "1"

@@ -570,6 +570,7 @@ void base_delta_compress(const uint64_t *addrs, const std::bitset<32> &mask,
 }
 
 void *recv_thread_fun(void *) {
+  uint32_t num_packets = 0;
   char *recv_buffer = (char *)malloc(CHANNEL_SIZE);
 
   while (recv_thread_started) {
@@ -667,9 +668,11 @@ void *recv_thread_fun(void *) {
         fprintf(resultsFile, "\n");
 
         num_processed_bytes += sizeof(inst_trace_t);
+        num_packets++;
       }
     }
   }
+  printf("received %lld packets\n", num_packets);
   free(recv_buffer);
   return NULL;
 }

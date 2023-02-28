@@ -8,7 +8,9 @@ use nvbit_sys::bindings;
 use rustacuda::memory::UnifiedBox;
 use std::collections::{HashMap, HashSet};
 use std::ffi;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
+use std::time::Instant;
 
 #[allow(
     warnings,
@@ -44,6 +46,7 @@ struct Instrumentor<'c> {
     skip_flag: Mutex<bool>,
     dynamic_kernel_limit_start: u64,
     dynamic_kernel_limit_end: u64,
+    start: Instant,
 }
 
 impl<'c> Instrumentor<'c> {
@@ -54,11 +57,30 @@ impl<'c> Instrumentor<'c> {
         ));
 
         let rx = host_channel.lock().unwrap().read();
+        let traces_dir = PathBuf::from(
+            std::env::var("TRACES_DIR").expect("missing TRACES_DIR environment variable"),
+        );
+
+        // make sure trace dir exists
+        std::fs::create_dir_all(&traces_dir).unwrap();
+
         let host_channel_clone = host_channel.clone();
         let recv_thread = Mutex::new(Some(std::thread::spawn(move || {
+            let mut file = std::io::BufWriter::new(
+                std::fs::OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .truncate(true)
+                    .open(traces_dir.join("kernelslist"))
+                    .unwrap(),
+            );
+            let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
+            let mut serializer = serde_json::Serializer::with_formatter(&mut file, formatter);
+            let mut encoder = nvbit_rs::Encoder::new(&mut serializer);
+
             let mut packet_count = 0;
             while let Ok(packet) = rx.recv() {
-                // when we get this cta_id_x it means the kernel has completed
+                // when cta_id_x == -1, the kernel has completed
                 if packet.cta_id_x == -1 {
                     host_channel_clone
                         .lock()
@@ -69,7 +91,10 @@ impl<'c> Instrumentor<'c> {
                 }
                 packet_count += 1;
                 // println!("{:?}", packet);
+                encoder.encode::<inst_trace_t>(packet).unwrap();
             }
+
+            encoder.finalize().unwrap();
             println!("received {} packets", packet_count);
         })));
 
@@ -95,6 +120,7 @@ impl<'c> Instrumentor<'c> {
             skip_flag: Mutex::new(false),
             dynamic_kernel_limit_start: 0, // start from the begging kernel
             dynamic_kernel_limit_end: 0,   // // no limit
+            start: Instant::now(),
         }
     }
 }
@@ -106,12 +132,6 @@ type Contexts = RwLock<HashMap<nvbit_rs::ContextHandle<'static>, Instrumentor<'s
 
 lazy_static! {
     static ref CONTEXTS: Contexts = RwLock::new(HashMap::new());
-}
-
-#[no_mangle]
-#[inline(never)]
-pub extern "C" fn nvbit_at_init() {
-    println!("nvbit_at_init");
 }
 
 impl<'c> Instrumentor<'c> {
@@ -280,6 +300,12 @@ impl<'c> Instrumentor<'c> {
             }
         }
     }
+}
+
+#[no_mangle]
+#[inline(never)]
+pub extern "C" fn nvbit_at_init() {
+    println!("nvbit_at_init");
 }
 
 #[no_mangle]
@@ -535,10 +561,14 @@ pub extern "C" fn nvbit_at_ctx_term(ctx: nvbit_rs::Context<'static>) {
         }
 
         instrumentor.at_ctx_term();
+
+        println!(
+            "done after {:?}",
+            Instant::now().duration_since(instrumentor.start)
+        );
     }
     // this will lead to problems:
     // CONTEXTS.write().unwrap().remove(&ctx.handle());
-    println!("done");
 }
 
 impl<'c> Instrumentor<'c> {
