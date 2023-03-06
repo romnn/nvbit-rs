@@ -1,0 +1,1138 @@
+
+
+
+
+
+
+
+
+.version 6.4
+.target sm_30
+.address_size 64
+
+
+.extern .func __assertfail
+(
+.param .b64 __assertfail_param_0,
+.param .b64 __assertfail_param_1,
+.param .b32 __assertfail_param_2,
+.param .b64 __assertfail_param_3,
+.param .b64 __assertfail_param_4
+)
+;
+.global .align 1 .b8 __unnamed_1[25] = {118, 111, 105, 100, 32, 67, 104, 97, 110, 110, 101, 108, 68, 101, 118, 58, 58, 102, 108, 117, 115, 104, 40, 41, 0};
+.global .align 1 .b8 $str[15] = {42, 100, 111, 111, 114, 98, 101, 108, 108, 32, 61, 61, 32, 48, 0};
+.global .align 1 .b8 $str1[140] = {47, 104, 111, 109, 101, 47, 114, 111, 109, 97, 110, 47, 100, 101, 118, 47, 110, 118, 98, 105, 116, 45, 115, 121, 115, 47, 116, 97, 114, 103, 101, 116, 47, 114, 101, 108, 101, 97, 115, 101, 47, 98, 117, 105, 108, 100, 47, 110, 118, 98, 105, 116, 45, 115, 121, 115, 45, 57, 55, 98, 53, 97, 102, 55, 49, 97, 99, 100, 100, 56, 48, 97, 49, 47, 111, 117, 116, 47, 110, 118, 98, 105, 116, 45, 76, 105, 110, 117, 120, 45, 120, 56, 54, 95, 54, 52, 45, 49, 46, 53, 46, 53, 47, 110, 118, 98, 105, 116, 95, 114, 101, 108, 101, 97, 115, 101, 47, 99, 111, 114, 101, 47, 117, 116, 105, 108, 115, 47, 99, 104, 97, 110, 110, 101, 108, 46, 104, 112, 112, 0};
+
+.visible .func instrument_inst(
+.param .b32 instrument_inst_param_0,
+.param .b32 instrument_inst_param_1,
+.param .b32 instrument_inst_param_2,
+.param .b32 instrument_inst_param_3,
+.param .b64 instrument_inst_param_4,
+.param .b32 instrument_inst_param_5,
+.param .b32 instrument_inst_param_6,
+.param .b32 instrument_inst_param_7,
+.param .b32 instrument_inst_param_8,
+.param .b32 instrument_inst_param_9,
+.param .b32 instrument_inst_param_10,
+.param .b32 instrument_inst_param_11,
+.param .b32 instrument_inst_param_12,
+.param .b64 instrument_inst_param_13,
+.param .b64 instrument_inst_param_14,
+.param .b64 instrument_inst_param_15,
+.param .b64 instrument_inst_param_16
+)
+{
+.reg .pred %p<82>;
+.reg .b16 %rs<8>;
+.reg .b32 %r<273>;
+.reg .b64 %rd<429>;
+
+
+ld.param.u32 %r26, [instrument_inst_param_0];
+ld.param.u64 %rd71, [instrument_inst_param_4];
+ld.param.u64 %rd72, [instrument_inst_param_13];
+ld.param.u64 %rd73, [instrument_inst_param_14];
+ld.param.u64 %rd75, [instrument_inst_param_16];
+ld.param.s8 %rs2, [instrument_inst_param_3];
+
+	activemask.b32 %r23;
+
+	mov.pred %p2, -1;
+vote.sync.ballot.b32 %r1, %p2, %r23;
+
+	activemask.b32 %r24;
+
+	setp.ne.s32	%p4, %r26, 0;
+vote.sync.ballot.b32 %r2, %p4, %r24;
+
+	mov.u32 %r25, %laneid;
+
+	neg.s32 %r27, %r1;
+and.b32 %r28, %r1, %r27;
+clz.b32 %r29, %r28;
+mov.u32 %r30, 31;
+sub.s32 %r4, %r30, %r29;
+ld.u8 %rs3, [%rd75];
+setp.ne.s16	%p5, %rs3, 0;
+setp.eq.s32	%p6, %r4, %r25;
+and.pred %p7, %p5, %p6;
+@%p7 bra BB0_17;
+bra.uni BB0_1;
+
+BB0_17:
+atom.add.u64 %rd390, [%rd73], 1;
+bra.uni BB0_18;
+
+BB0_1:
+and.b16 %rs5, %rs2, 255;
+setp.eq.s16	%p8, %rs5, 0;
+mov.u16 %rs7, 0;
+@%p8 bra BB0_3;
+
+
+	mov.b64 {%r31,%r32}, %rd71;
+
+	mov.u32 %r160, 0;
+shfl.sync.idx.b32 %r34|%p9, %r32, %r160, %r30, %r1;
+shfl.sync.idx.b32 %r33|%p10, %r31, %r160, %r30, %r1;
+
+	mov.b64 %rd420, {%r33,%r34};
+
+	
+	mov.b64 {%r35,%r36}, %rd71;
+
+	mov.u32 %r161, 1;
+shfl.sync.idx.b32 %r38|%p11, %r36, %r161, %r30, %r1;
+shfl.sync.idx.b32 %r37|%p12, %r35, %r161, %r30, %r1;
+
+	mov.b64 %rd419, {%r37,%r38};
+
+	
+	mov.b64 {%r39,%r40}, %rd71;
+
+	mov.u32 %r162, 2;
+shfl.sync.idx.b32 %r42|%p13, %r40, %r162, %r30, %r1;
+shfl.sync.idx.b32 %r41|%p14, %r39, %r162, %r30, %r1;
+
+	mov.b64 %rd418, {%r41,%r42};
+
+	
+	mov.b64 {%r43,%r44}, %rd71;
+
+	mov.u32 %r163, 3;
+shfl.sync.idx.b32 %r46|%p15, %r44, %r163, %r30, %r1;
+shfl.sync.idx.b32 %r45|%p16, %r43, %r163, %r30, %r1;
+
+	mov.b64 %rd417, {%r45,%r46};
+
+	
+	mov.b64 {%r47,%r48}, %rd71;
+
+	mov.u32 %r164, 4;
+shfl.sync.idx.b32 %r50|%p17, %r48, %r164, %r30, %r1;
+shfl.sync.idx.b32 %r49|%p18, %r47, %r164, %r30, %r1;
+
+	mov.b64 %rd416, {%r49,%r50};
+
+	
+	mov.b64 {%r51,%r52}, %rd71;
+
+	mov.u32 %r165, 5;
+shfl.sync.idx.b32 %r54|%p19, %r52, %r165, %r30, %r1;
+shfl.sync.idx.b32 %r53|%p20, %r51, %r165, %r30, %r1;
+
+	mov.b64 %rd415, {%r53,%r54};
+
+	
+	mov.b64 {%r55,%r56}, %rd71;
+
+	mov.u32 %r166, 6;
+shfl.sync.idx.b32 %r58|%p21, %r56, %r166, %r30, %r1;
+shfl.sync.idx.b32 %r57|%p22, %r55, %r166, %r30, %r1;
+
+	mov.b64 %rd414, {%r57,%r58};
+
+	
+	mov.b64 {%r59,%r60}, %rd71;
+
+	mov.u32 %r167, 7;
+shfl.sync.idx.b32 %r62|%p23, %r60, %r167, %r30, %r1;
+shfl.sync.idx.b32 %r61|%p24, %r59, %r167, %r30, %r1;
+
+	mov.b64 %rd413, {%r61,%r62};
+
+	
+	mov.b64 {%r63,%r64}, %rd71;
+
+	mov.u32 %r168, 8;
+shfl.sync.idx.b32 %r66|%p25, %r64, %r168, %r30, %r1;
+shfl.sync.idx.b32 %r65|%p26, %r63, %r168, %r30, %r1;
+
+	mov.b64 %rd412, {%r65,%r66};
+
+	
+	mov.b64 {%r67,%r68}, %rd71;
+
+	mov.u32 %r169, 9;
+shfl.sync.idx.b32 %r70|%p27, %r68, %r169, %r30, %r1;
+shfl.sync.idx.b32 %r69|%p28, %r67, %r169, %r30, %r1;
+
+	mov.b64 %rd411, {%r69,%r70};
+
+	
+	mov.b64 {%r71,%r72}, %rd71;
+
+	mov.u32 %r170, 10;
+shfl.sync.idx.b32 %r74|%p29, %r72, %r170, %r30, %r1;
+shfl.sync.idx.b32 %r73|%p30, %r71, %r170, %r30, %r1;
+
+	mov.b64 %rd410, {%r73,%r74};
+
+	
+	mov.b64 {%r75,%r76}, %rd71;
+
+	mov.u32 %r171, 11;
+shfl.sync.idx.b32 %r78|%p31, %r76, %r171, %r30, %r1;
+shfl.sync.idx.b32 %r77|%p32, %r75, %r171, %r30, %r1;
+
+	mov.b64 %rd409, {%r77,%r78};
+
+	
+	mov.b64 {%r79,%r80}, %rd71;
+
+	mov.u32 %r172, 12;
+shfl.sync.idx.b32 %r82|%p33, %r80, %r172, %r30, %r1;
+shfl.sync.idx.b32 %r81|%p34, %r79, %r172, %r30, %r1;
+
+	mov.b64 %rd408, {%r81,%r82};
+
+	
+	mov.b64 {%r83,%r84}, %rd71;
+
+	mov.u32 %r173, 13;
+shfl.sync.idx.b32 %r86|%p35, %r84, %r173, %r30, %r1;
+shfl.sync.idx.b32 %r85|%p36, %r83, %r173, %r30, %r1;
+
+	mov.b64 %rd407, {%r85,%r86};
+
+	
+	mov.b64 {%r87,%r88}, %rd71;
+
+	mov.u32 %r174, 14;
+shfl.sync.idx.b32 %r90|%p37, %r88, %r174, %r30, %r1;
+shfl.sync.idx.b32 %r89|%p38, %r87, %r174, %r30, %r1;
+
+	mov.b64 %rd406, {%r89,%r90};
+
+	
+	mov.b64 {%r91,%r92}, %rd71;
+
+	mov.u32 %r175, 15;
+shfl.sync.idx.b32 %r94|%p39, %r92, %r175, %r30, %r1;
+shfl.sync.idx.b32 %r93|%p40, %r91, %r175, %r30, %r1;
+
+	mov.b64 %rd405, {%r93,%r94};
+
+	
+	mov.b64 {%r95,%r96}, %rd71;
+
+	mov.u32 %r176, 16;
+shfl.sync.idx.b32 %r98|%p41, %r96, %r176, %r30, %r1;
+shfl.sync.idx.b32 %r97|%p42, %r95, %r176, %r30, %r1;
+
+	mov.b64 %rd404, {%r97,%r98};
+
+	
+	mov.b64 {%r99,%r100}, %rd71;
+
+	mov.u32 %r177, 17;
+shfl.sync.idx.b32 %r102|%p43, %r100, %r177, %r30, %r1;
+shfl.sync.idx.b32 %r101|%p44, %r99, %r177, %r30, %r1;
+
+	mov.b64 %rd403, {%r101,%r102};
+
+	
+	mov.b64 {%r103,%r104}, %rd71;
+
+	mov.u32 %r178, 18;
+shfl.sync.idx.b32 %r106|%p45, %r104, %r178, %r30, %r1;
+shfl.sync.idx.b32 %r105|%p46, %r103, %r178, %r30, %r1;
+
+	mov.b64 %rd402, {%r105,%r106};
+
+	
+	mov.b64 {%r107,%r108}, %rd71;
+
+	mov.u32 %r179, 19;
+shfl.sync.idx.b32 %r110|%p47, %r108, %r179, %r30, %r1;
+shfl.sync.idx.b32 %r109|%p48, %r107, %r179, %r30, %r1;
+
+	mov.b64 %rd401, {%r109,%r110};
+
+	
+	mov.b64 {%r111,%r112}, %rd71;
+
+	mov.u32 %r180, 20;
+shfl.sync.idx.b32 %r114|%p49, %r112, %r180, %r30, %r1;
+shfl.sync.idx.b32 %r113|%p50, %r111, %r180, %r30, %r1;
+
+	mov.b64 %rd400, {%r113,%r114};
+
+	
+	mov.b64 {%r115,%r116}, %rd71;
+
+	mov.u32 %r181, 21;
+shfl.sync.idx.b32 %r118|%p51, %r116, %r181, %r30, %r1;
+shfl.sync.idx.b32 %r117|%p52, %r115, %r181, %r30, %r1;
+
+	mov.b64 %rd399, {%r117,%r118};
+
+	
+	mov.b64 {%r119,%r120}, %rd71;
+
+	mov.u32 %r182, 22;
+shfl.sync.idx.b32 %r122|%p53, %r120, %r182, %r30, %r1;
+shfl.sync.idx.b32 %r121|%p54, %r119, %r182, %r30, %r1;
+
+	mov.b64 %rd398, {%r121,%r122};
+
+	
+	mov.b64 {%r123,%r124}, %rd71;
+
+	mov.u32 %r183, 23;
+shfl.sync.idx.b32 %r126|%p55, %r124, %r183, %r30, %r1;
+shfl.sync.idx.b32 %r125|%p56, %r123, %r183, %r30, %r1;
+
+	mov.b64 %rd397, {%r125,%r126};
+
+	
+	mov.b64 {%r127,%r128}, %rd71;
+
+	mov.u32 %r184, 24;
+shfl.sync.idx.b32 %r130|%p57, %r128, %r184, %r30, %r1;
+shfl.sync.idx.b32 %r129|%p58, %r127, %r184, %r30, %r1;
+
+	mov.b64 %rd396, {%r129,%r130};
+
+	
+	mov.b64 {%r131,%r132}, %rd71;
+
+	mov.u32 %r185, 25;
+shfl.sync.idx.b32 %r134|%p59, %r132, %r185, %r30, %r1;
+shfl.sync.idx.b32 %r133|%p60, %r131, %r185, %r30, %r1;
+
+	mov.b64 %rd421, {%r133,%r134};
+
+	
+	mov.b64 {%r135,%r136}, %rd71;
+
+	mov.u32 %r186, 26;
+shfl.sync.idx.b32 %r138|%p61, %r136, %r186, %r30, %r1;
+shfl.sync.idx.b32 %r137|%p62, %r135, %r186, %r30, %r1;
+
+	mov.b64 %rd422, {%r137,%r138};
+
+	
+	mov.b64 {%r139,%r140}, %rd71;
+
+	mov.u32 %r187, 27;
+shfl.sync.idx.b32 %r142|%p63, %r140, %r187, %r30, %r1;
+shfl.sync.idx.b32 %r141|%p64, %r139, %r187, %r30, %r1;
+
+	mov.b64 %rd423, {%r141,%r142};
+
+	
+	mov.b64 {%r143,%r144}, %rd71;
+
+	mov.u32 %r188, 28;
+shfl.sync.idx.b32 %r146|%p65, %r144, %r188, %r30, %r1;
+shfl.sync.idx.b32 %r145|%p66, %r143, %r188, %r30, %r1;
+
+	mov.b64 %rd424, {%r145,%r146};
+
+	
+	mov.b64 {%r147,%r148}, %rd71;
+
+	mov.u32 %r189, 29;
+shfl.sync.idx.b32 %r150|%p67, %r148, %r189, %r30, %r1;
+shfl.sync.idx.b32 %r149|%p68, %r147, %r189, %r30, %r1;
+
+	mov.b64 %rd425, {%r149,%r150};
+
+	
+	mov.b64 {%r151,%r152}, %rd71;
+
+	mov.u32 %r190, 30;
+shfl.sync.idx.b32 %r154|%p69, %r152, %r190, %r30, %r1;
+shfl.sync.idx.b32 %r153|%p70, %r151, %r190, %r30, %r1;
+
+	mov.b64 %rd426, {%r153,%r154};
+
+	
+	mov.b64 {%r155,%r156}, %rd71;
+
+	shfl.sync.idx.b32 %r158|%p71, %r156, %r30, %r30, %r1;
+shfl.sync.idx.b32 %r157|%p72, %r155, %r30, %r30, %r1;
+
+	mov.b64 %rd427, {%r157,%r158};
+
+	mov.u16 %rs7, 1;
+
+BB0_3:
+
+	mov.u32 %r191, %ctaid.x;
+
+	
+	mov.u32 %r192, %ctaid.y;
+
+	
+	mov.u32 %r193, %ctaid.z;
+
+	
+	mov.u32 %r194, %warpid;
+
+	
+	mov.u32 %r195, %smid;
+
+	setp.ne.s32	%p73, %r4, %r25;
+@%p73 bra BB0_18;
+
+mov.u32 %r196, %tid.x;
+mov.u32 %r197, %ntid.x;
+mov.u32 %r198, %tid.y;
+mov.u32 %r199, %tid.z;
+mov.u32 %r200, %ntid.y;
+mad.lo.s32 %r201, %r200, %r199, %r198;
+mad.lo.s32 %r202, %r201, %r197, %r196;
+shr.s32 %r203, %r202, 31;
+shr.u32 %r204, %r203, 27;
+add.s32 %r205, %r202, %r204;
+shr.s32 %r11, %r205, 5;
+
+BB0_5:
+add.s64 %rd141, %rd72, 32;
+atom.add.u64 %rd428, [%rd141], 336;
+add.s64 %rd142, %rd428, 336;
+ld.u64 %rd67, [%rd72+24];
+setp.le.u64	%p74, %rd142, %rd67;
+@%p74 bra BB0_15;
+
+setp.gt.u64	%p75, %rd428, %rd67;
+@%p75 bra BB0_14;
+bra.uni BB0_7;
+
+BB0_14:
+add.s64 %rd393, %rd72, 32;
+ld.volatile.u64 %rd161, [%rd393];
+setp.gt.u64	%p80, %rd161, %rd67;
+mov.u64 %rd428, 0;
+@%p80 bra BB0_14;
+bra.uni BB0_15;
+
+BB0_7:
+add.s64 %rd392, %rd72, 32;
+ld.volatile.u64 %rd143, [%rd392+8];
+setp.ne.s64	%p76, %rd143, %rd428;
+@%p76 bra BB0_7;
+
+ld.volatile.u64 %rd145, [%rd72+40];
+ld.u64 %rd146, [%rd72+16];
+sub.s64 %rd147, %rd145, %rd146;
+cvt.u32.u64	%r12, %rd147;
+setp.eq.s32	%p77, %r12, 0;
+mov.u64 %rd428, 0;
+@%p77 bra BB0_15;
+
+membar.sys;
+ld.u64 %rd148, [%rd72+8];
+ld.volatile.u32 %r206, [%rd148];
+setp.eq.s32	%p78, %r206, 0;
+@%p78 bra BB0_11;
+
+mov.u64 %rd149, $str;
+cvta.global.u64 %rd150, %rd149;
+mov.u64 %rd151, $str1;
+cvta.global.u64 %rd152, %rd151;
+mov.u64 %rd153, __unnamed_1;
+cvta.global.u64 %rd154, %rd153;
+mov.u32 %r207, 102;
+mov.u64 %rd155, 1;
+
+	{
+.reg .b32 temp_param_reg;
+
+	.param .b64 param0;
+st.param.b64	[param0+0], %rd150;
+.param .b64 param1;
+st.param.b64	[param1+0], %rd152;
+.param .b32 param2;
+st.param.b32	[param2+0], %r207;
+.param .b64 param3;
+st.param.b64	[param3+0], %rd154;
+.param .b64 param4;
+st.param.b64	[param4+0], %rd155;
+call.uni 
+__assertfail, 
+(
+param0, 
+param1, 
+param2, 
+param3, 
+param4
+);
+
+
+	}
+
+BB0_11:
+ld.u64 %rd156, [%rd72+8];
+st.volatile.u32 [%rd156], %r12;
+ld.u64 %rd69, [%rd72+8];
+
+BB0_12:
+ld.volatile.u32 %r208, [%rd69];
+setp.ne.s32	%p79, %r208, 0;
+@%p79 bra BB0_12;
+
+mov.u64 %rd428, 0;
+ld.u64 %rd158, [%rd72+16];
+st.volatile.u64 [%rd72+40], %rd158;
+membar.gl;
+ld.u64 %rd159, [%rd72+16];
+st.volatile.u64 [%rd72+32], %rd159;
+
+BB0_15:
+setp.eq.s64	%p81, %rd428, 0;
+@%p81 bra BB0_5;
+
+ld.param.u64 %rd394, [instrument_inst_param_14];
+ld.param.u64 %rd391, [instrument_inst_param_15];
+ld.param.u32 %r272, [instrument_inst_param_5];
+ld.param.u32 %r271, [instrument_inst_param_12];
+ld.param.u32 %r270, [instrument_inst_param_11];
+ld.param.u32 %r269, [instrument_inst_param_10];
+ld.param.u32 %r268, [instrument_inst_param_9];
+ld.param.u32 %r267, [instrument_inst_param_8];
+ld.param.u32 %r266, [instrument_inst_param_7];
+ld.param.u32 %r265, [instrument_inst_param_6];
+ld.param.u32 %r264, [instrument_inst_param_2];
+ld.param.u32 %r263, [instrument_inst_param_1];
+st.u8 [%rd428], %r191;
+shr.u32 %r209, %r191, 24;
+st.u8 [%rd428+3], %r209;
+shr.u32 %r210, %r191, 16;
+st.u8 [%rd428+2], %r210;
+shr.u32 %r211, %r191, 8;
+st.u8 [%rd428+1], %r211;
+st.u8 [%rd428+4], %r192;
+shr.u32 %r212, %r192, 24;
+st.u8 [%rd428+7], %r212;
+shr.u32 %r213, %r192, 16;
+st.u8 [%rd428+6], %r213;
+shr.u32 %r214, %r192, 8;
+st.u8 [%rd428+5], %r214;
+st.u8 [%rd428+8], %r193;
+shr.u32 %r215, %r193, 24;
+st.u8 [%rd428+11], %r215;
+shr.u32 %r216, %r193, 16;
+st.u8 [%rd428+10], %r216;
+shr.u32 %r217, %r193, 8;
+st.u8 [%rd428+9], %r217;
+st.u8 [%rd428+12], %r11;
+shr.u32 %r218, %r11, 24;
+st.u8 [%rd428+15], %r218;
+shr.u32 %r219, %r11, 16;
+st.u8 [%rd428+14], %r219;
+shr.u32 %r220, %r11, 8;
+st.u8 [%rd428+13], %r220;
+st.u8 [%rd428+16], %r194;
+shr.u32 %r221, %r194, 24;
+st.u8 [%rd428+19], %r221;
+shr.u32 %r222, %r194, 16;
+st.u8 [%rd428+18], %r222;
+shr.u32 %r223, %r194, 8;
+st.u8 [%rd428+17], %r223;
+st.u8 [%rd428+20], %r195;
+shr.u32 %r224, %r195, 24;
+st.u8 [%rd428+23], %r224;
+shr.u32 %r225, %r195, 16;
+st.u8 [%rd428+22], %r225;
+shr.u32 %r226, %r195, 8;
+st.u8 [%rd428+21], %r226;
+st.u8 [%rd428+24], %r263;
+shr.u32 %r227, %r263, 24;
+st.u8 [%rd428+27], %r227;
+shr.u32 %r228, %r263, 16;
+st.u8 [%rd428+26], %r228;
+shr.u32 %r229, %r263, 8;
+st.u8 [%rd428+25], %r229;
+shr.u64 %rd162, %rd420, 56;
+st.u8 [%rd428+288], %r264;
+shr.u32 %r230, %r264, 24;
+st.u8 [%rd428+291], %r230;
+shr.u32 %r231, %r264, 16;
+st.u8 [%rd428+290], %r231;
+shr.u32 %r232, %r264, 8;
+st.u8 [%rd428+289], %r232;
+st.u8 [%rd428+296], %r265;
+shr.u32 %r233, %r265, 24;
+st.u8 [%rd428+299], %r233;
+shr.u32 %r234, %r265, 16;
+st.u8 [%rd428+298], %r234;
+shr.u32 %r235, %r265, 8;
+st.u8 [%rd428+297], %r235;
+st.u8 [%rd428+300], %r266;
+shr.u32 %r236, %r266, 24;
+st.u8 [%rd428+303], %r236;
+shr.u32 %r237, %r266, 16;
+st.u8 [%rd428+302], %r237;
+shr.u32 %r238, %r266, 8;
+st.u8 [%rd428+301], %r238;
+st.u8 [%rd428+304], %r267;
+shr.u32 %r239, %r267, 24;
+st.u8 [%rd428+307], %r239;
+shr.u32 %r240, %r267, 16;
+st.u8 [%rd428+306], %r240;
+shr.u32 %r241, %r267, 8;
+st.u8 [%rd428+305], %r241;
+st.u8 [%rd428+308], %r268;
+shr.u32 %r242, %r268, 24;
+st.u8 [%rd428+311], %r242;
+shr.u32 %r243, %r268, 16;
+st.u8 [%rd428+310], %r243;
+shr.u32 %r244, %r268, 8;
+st.u8 [%rd428+309], %r244;
+st.u8 [%rd428+312], %r269;
+shr.u32 %r245, %r269, 24;
+st.u8 [%rd428+315], %r245;
+shr.u32 %r246, %r269, 16;
+st.u8 [%rd428+314], %r246;
+shr.u32 %r247, %r269, 8;
+st.u8 [%rd428+313], %r247;
+st.u8 [%rd428+316], %r270;
+shr.u32 %r248, %r270, 24;
+st.u8 [%rd428+319], %r248;
+shr.u32 %r249, %r270, 16;
+st.u8 [%rd428+318], %r249;
+shr.u32 %r250, %r270, 8;
+st.u8 [%rd428+317], %r250;
+st.u8 [%rd428+320], %r271;
+shr.u32 %r251, %r271, 24;
+st.u8 [%rd428+323], %r251;
+shr.u32 %r252, %r271, 16;
+st.u8 [%rd428+322], %r252;
+shr.u32 %r253, %r271, 8;
+st.u8 [%rd428+321], %r253;
+st.u8 [%rd428+324], %r272;
+shr.u32 %r254, %r272, 24;
+st.u8 [%rd428+327], %r254;
+shr.u32 %r255, %r272, 16;
+st.u8 [%rd428+326], %r255;
+shr.u32 %r256, %r272, 8;
+st.u8 [%rd428+325], %r256;
+st.u8 [%rd428+328], %r1;
+shr.u32 %r257, %r1, 24;
+st.u8 [%rd428+331], %r257;
+shr.u32 %r258, %r1, 16;
+st.u8 [%rd428+330], %r258;
+shr.u32 %r259, %r1, 8;
+st.u8 [%rd428+329], %r259;
+st.u8 [%rd428+332], %r2;
+shr.u32 %r260, %r2, 24;
+st.u8 [%rd428+335], %r260;
+shr.u32 %r261, %r2, 16;
+st.u8 [%rd428+334], %r261;
+shr.u32 %r262, %r2, 8;
+st.u8 [%rd428+333], %r262;
+st.u8 [%rd428+39], %rd162;
+shr.u64 %rd163, %rd420, 48;
+st.u8 [%rd428+38], %rd163;
+shr.u64 %rd164, %rd420, 40;
+st.u8 [%rd428+37], %rd164;
+shr.u64 %rd165, %rd420, 32;
+st.u8 [%rd428+36], %rd165;
+shr.u64 %rd166, %rd420, 24;
+st.u8 [%rd428+35], %rd166;
+shr.u64 %rd167, %rd420, 16;
+st.u8 [%rd428+34], %rd167;
+shr.u64 %rd168, %rd420, 8;
+st.u8 [%rd428+33], %rd168;
+st.u8 [%rd428+32], %rd420;
+shr.u64 %rd169, %rd419, 56;
+st.u8 [%rd428+47], %rd169;
+shr.u64 %rd170, %rd419, 48;
+st.u8 [%rd428+46], %rd170;
+shr.u64 %rd171, %rd419, 40;
+st.u8 [%rd428+45], %rd171;
+shr.u64 %rd172, %rd419, 32;
+st.u8 [%rd428+44], %rd172;
+shr.u64 %rd173, %rd419, 24;
+st.u8 [%rd428+43], %rd173;
+shr.u64 %rd174, %rd419, 16;
+st.u8 [%rd428+42], %rd174;
+shr.u64 %rd175, %rd419, 8;
+st.u8 [%rd428+41], %rd175;
+st.u8 [%rd428+40], %rd419;
+shr.u64 %rd176, %rd418, 56;
+st.u8 [%rd428+55], %rd176;
+shr.u64 %rd177, %rd418, 48;
+st.u8 [%rd428+54], %rd177;
+shr.u64 %rd178, %rd418, 40;
+st.u8 [%rd428+53], %rd178;
+shr.u64 %rd179, %rd418, 32;
+st.u8 [%rd428+52], %rd179;
+shr.u64 %rd180, %rd418, 24;
+st.u8 [%rd428+51], %rd180;
+shr.u64 %rd181, %rd418, 16;
+st.u8 [%rd428+50], %rd181;
+shr.u64 %rd182, %rd418, 8;
+st.u8 [%rd428+49], %rd182;
+st.u8 [%rd428+48], %rd418;
+shr.u64 %rd183, %rd417, 56;
+st.u8 [%rd428+63], %rd183;
+shr.u64 %rd184, %rd417, 48;
+st.u8 [%rd428+62], %rd184;
+shr.u64 %rd185, %rd417, 40;
+st.u8 [%rd428+61], %rd185;
+shr.u64 %rd186, %rd417, 32;
+st.u8 [%rd428+60], %rd186;
+shr.u64 %rd187, %rd417, 24;
+st.u8 [%rd428+59], %rd187;
+shr.u64 %rd188, %rd417, 16;
+st.u8 [%rd428+58], %rd188;
+shr.u64 %rd189, %rd417, 8;
+st.u8 [%rd428+57], %rd189;
+st.u8 [%rd428+56], %rd417;
+shr.u64 %rd190, %rd416, 56;
+st.u8 [%rd428+71], %rd190;
+shr.u64 %rd191, %rd416, 48;
+st.u8 [%rd428+70], %rd191;
+shr.u64 %rd192, %rd416, 40;
+st.u8 [%rd428+69], %rd192;
+shr.u64 %rd193, %rd416, 32;
+st.u8 [%rd428+68], %rd193;
+shr.u64 %rd194, %rd416, 24;
+st.u8 [%rd428+67], %rd194;
+shr.u64 %rd195, %rd416, 16;
+st.u8 [%rd428+66], %rd195;
+shr.u64 %rd196, %rd416, 8;
+st.u8 [%rd428+65], %rd196;
+st.u8 [%rd428+64], %rd416;
+shr.u64 %rd197, %rd415, 56;
+st.u8 [%rd428+79], %rd197;
+shr.u64 %rd198, %rd415, 48;
+st.u8 [%rd428+78], %rd198;
+shr.u64 %rd199, %rd415, 40;
+st.u8 [%rd428+77], %rd199;
+shr.u64 %rd200, %rd415, 32;
+st.u8 [%rd428+76], %rd200;
+shr.u64 %rd201, %rd415, 24;
+st.u8 [%rd428+75], %rd201;
+shr.u64 %rd202, %rd415, 16;
+st.u8 [%rd428+74], %rd202;
+shr.u64 %rd203, %rd415, 8;
+st.u8 [%rd428+73], %rd203;
+st.u8 [%rd428+72], %rd415;
+shr.u64 %rd204, %rd414, 56;
+st.u8 [%rd428+87], %rd204;
+shr.u64 %rd205, %rd414, 48;
+st.u8 [%rd428+86], %rd205;
+shr.u64 %rd206, %rd414, 40;
+st.u8 [%rd428+85], %rd206;
+shr.u64 %rd207, %rd414, 32;
+st.u8 [%rd428+84], %rd207;
+shr.u64 %rd208, %rd414, 24;
+st.u8 [%rd428+83], %rd208;
+shr.u64 %rd209, %rd414, 16;
+st.u8 [%rd428+82], %rd209;
+shr.u64 %rd210, %rd414, 8;
+st.u8 [%rd428+81], %rd210;
+st.u8 [%rd428+80], %rd414;
+shr.u64 %rd211, %rd413, 56;
+st.u8 [%rd428+95], %rd211;
+shr.u64 %rd212, %rd413, 48;
+st.u8 [%rd428+94], %rd212;
+shr.u64 %rd213, %rd413, 40;
+st.u8 [%rd428+93], %rd213;
+shr.u64 %rd214, %rd413, 32;
+st.u8 [%rd428+92], %rd214;
+shr.u64 %rd215, %rd413, 24;
+st.u8 [%rd428+91], %rd215;
+shr.u64 %rd216, %rd413, 16;
+st.u8 [%rd428+90], %rd216;
+shr.u64 %rd217, %rd413, 8;
+st.u8 [%rd428+89], %rd217;
+st.u8 [%rd428+88], %rd413;
+shr.u64 %rd218, %rd412, 56;
+st.u8 [%rd428+103], %rd218;
+shr.u64 %rd219, %rd412, 48;
+st.u8 [%rd428+102], %rd219;
+shr.u64 %rd220, %rd412, 40;
+st.u8 [%rd428+101], %rd220;
+shr.u64 %rd221, %rd412, 32;
+st.u8 [%rd428+100], %rd221;
+shr.u64 %rd222, %rd412, 24;
+st.u8 [%rd428+99], %rd222;
+shr.u64 %rd223, %rd412, 16;
+st.u8 [%rd428+98], %rd223;
+shr.u64 %rd224, %rd412, 8;
+st.u8 [%rd428+97], %rd224;
+st.u8 [%rd428+96], %rd412;
+shr.u64 %rd225, %rd411, 56;
+st.u8 [%rd428+111], %rd225;
+shr.u64 %rd226, %rd411, 48;
+st.u8 [%rd428+110], %rd226;
+shr.u64 %rd227, %rd411, 40;
+st.u8 [%rd428+109], %rd227;
+shr.u64 %rd228, %rd411, 32;
+st.u8 [%rd428+108], %rd228;
+shr.u64 %rd229, %rd411, 24;
+st.u8 [%rd428+107], %rd229;
+shr.u64 %rd230, %rd411, 16;
+st.u8 [%rd428+106], %rd230;
+shr.u64 %rd231, %rd411, 8;
+st.u8 [%rd428+105], %rd231;
+st.u8 [%rd428+104], %rd411;
+shr.u64 %rd232, %rd410, 56;
+st.u8 [%rd428+119], %rd232;
+shr.u64 %rd233, %rd410, 48;
+st.u8 [%rd428+118], %rd233;
+shr.u64 %rd234, %rd410, 40;
+st.u8 [%rd428+117], %rd234;
+shr.u64 %rd235, %rd410, 32;
+st.u8 [%rd428+116], %rd235;
+shr.u64 %rd236, %rd410, 24;
+st.u8 [%rd428+115], %rd236;
+shr.u64 %rd237, %rd410, 16;
+st.u8 [%rd428+114], %rd237;
+shr.u64 %rd238, %rd410, 8;
+st.u8 [%rd428+113], %rd238;
+st.u8 [%rd428+112], %rd410;
+shr.u64 %rd239, %rd409, 56;
+st.u8 [%rd428+127], %rd239;
+shr.u64 %rd240, %rd409, 48;
+st.u8 [%rd428+126], %rd240;
+shr.u64 %rd241, %rd409, 40;
+st.u8 [%rd428+125], %rd241;
+shr.u64 %rd242, %rd409, 32;
+st.u8 [%rd428+124], %rd242;
+shr.u64 %rd243, %rd409, 24;
+st.u8 [%rd428+123], %rd243;
+shr.u64 %rd244, %rd409, 16;
+st.u8 [%rd428+122], %rd244;
+shr.u64 %rd245, %rd409, 8;
+st.u8 [%rd428+121], %rd245;
+st.u8 [%rd428+120], %rd409;
+shr.u64 %rd246, %rd408, 56;
+st.u8 [%rd428+135], %rd246;
+shr.u64 %rd247, %rd408, 48;
+st.u8 [%rd428+134], %rd247;
+shr.u64 %rd248, %rd408, 40;
+st.u8 [%rd428+133], %rd248;
+shr.u64 %rd249, %rd408, 32;
+st.u8 [%rd428+132], %rd249;
+shr.u64 %rd250, %rd408, 24;
+st.u8 [%rd428+131], %rd250;
+shr.u64 %rd251, %rd408, 16;
+st.u8 [%rd428+130], %rd251;
+shr.u64 %rd252, %rd408, 8;
+st.u8 [%rd428+129], %rd252;
+st.u8 [%rd428+128], %rd408;
+shr.u64 %rd253, %rd407, 56;
+st.u8 [%rd428+143], %rd253;
+shr.u64 %rd254, %rd407, 48;
+st.u8 [%rd428+142], %rd254;
+shr.u64 %rd255, %rd407, 40;
+st.u8 [%rd428+141], %rd255;
+shr.u64 %rd256, %rd407, 32;
+st.u8 [%rd428+140], %rd256;
+shr.u64 %rd257, %rd407, 24;
+st.u8 [%rd428+139], %rd257;
+shr.u64 %rd258, %rd407, 16;
+st.u8 [%rd428+138], %rd258;
+shr.u64 %rd259, %rd407, 8;
+st.u8 [%rd428+137], %rd259;
+st.u8 [%rd428+136], %rd407;
+shr.u64 %rd260, %rd406, 56;
+st.u8 [%rd428+151], %rd260;
+shr.u64 %rd261, %rd406, 48;
+st.u8 [%rd428+150], %rd261;
+shr.u64 %rd262, %rd406, 40;
+st.u8 [%rd428+149], %rd262;
+shr.u64 %rd263, %rd406, 32;
+st.u8 [%rd428+148], %rd263;
+shr.u64 %rd264, %rd406, 24;
+st.u8 [%rd428+147], %rd264;
+shr.u64 %rd265, %rd406, 16;
+st.u8 [%rd428+146], %rd265;
+shr.u64 %rd266, %rd406, 8;
+st.u8 [%rd428+145], %rd266;
+st.u8 [%rd428+144], %rd406;
+shr.u64 %rd267, %rd405, 56;
+st.u8 [%rd428+159], %rd267;
+shr.u64 %rd268, %rd405, 48;
+st.u8 [%rd428+158], %rd268;
+shr.u64 %rd269, %rd405, 40;
+st.u8 [%rd428+157], %rd269;
+shr.u64 %rd270, %rd405, 32;
+st.u8 [%rd428+156], %rd270;
+shr.u64 %rd271, %rd405, 24;
+st.u8 [%rd428+155], %rd271;
+shr.u64 %rd272, %rd405, 16;
+st.u8 [%rd428+154], %rd272;
+shr.u64 %rd273, %rd405, 8;
+st.u8 [%rd428+153], %rd273;
+st.u8 [%rd428+152], %rd405;
+shr.u64 %rd274, %rd404, 56;
+st.u8 [%rd428+167], %rd274;
+shr.u64 %rd275, %rd404, 48;
+st.u8 [%rd428+166], %rd275;
+shr.u64 %rd276, %rd404, 40;
+st.u8 [%rd428+165], %rd276;
+shr.u64 %rd277, %rd404, 32;
+st.u8 [%rd428+164], %rd277;
+shr.u64 %rd278, %rd404, 24;
+st.u8 [%rd428+163], %rd278;
+shr.u64 %rd279, %rd404, 16;
+st.u8 [%rd428+162], %rd279;
+shr.u64 %rd280, %rd404, 8;
+st.u8 [%rd428+161], %rd280;
+st.u8 [%rd428+160], %rd404;
+shr.u64 %rd281, %rd403, 56;
+st.u8 [%rd428+175], %rd281;
+shr.u64 %rd282, %rd403, 48;
+st.u8 [%rd428+174], %rd282;
+shr.u64 %rd283, %rd403, 40;
+st.u8 [%rd428+173], %rd283;
+shr.u64 %rd284, %rd403, 32;
+st.u8 [%rd428+172], %rd284;
+shr.u64 %rd285, %rd403, 24;
+st.u8 [%rd428+171], %rd285;
+shr.u64 %rd286, %rd403, 16;
+st.u8 [%rd428+170], %rd286;
+shr.u64 %rd287, %rd403, 8;
+st.u8 [%rd428+169], %rd287;
+st.u8 [%rd428+168], %rd403;
+shr.u64 %rd288, %rd402, 56;
+st.u8 [%rd428+183], %rd288;
+shr.u64 %rd289, %rd402, 48;
+st.u8 [%rd428+182], %rd289;
+shr.u64 %rd290, %rd402, 40;
+st.u8 [%rd428+181], %rd290;
+shr.u64 %rd291, %rd402, 32;
+st.u8 [%rd428+180], %rd291;
+shr.u64 %rd292, %rd402, 24;
+st.u8 [%rd428+179], %rd292;
+shr.u64 %rd293, %rd402, 16;
+st.u8 [%rd428+178], %rd293;
+shr.u64 %rd294, %rd402, 8;
+st.u8 [%rd428+177], %rd294;
+st.u8 [%rd428+176], %rd402;
+shr.u64 %rd295, %rd401, 56;
+st.u8 [%rd428+191], %rd295;
+shr.u64 %rd296, %rd401, 48;
+st.u8 [%rd428+190], %rd296;
+shr.u64 %rd297, %rd401, 40;
+st.u8 [%rd428+189], %rd297;
+shr.u64 %rd298, %rd401, 32;
+st.u8 [%rd428+188], %rd298;
+shr.u64 %rd299, %rd401, 24;
+st.u8 [%rd428+187], %rd299;
+shr.u64 %rd300, %rd401, 16;
+st.u8 [%rd428+186], %rd300;
+shr.u64 %rd301, %rd401, 8;
+st.u8 [%rd428+185], %rd301;
+st.u8 [%rd428+184], %rd401;
+shr.u64 %rd302, %rd400, 56;
+st.u8 [%rd428+199], %rd302;
+shr.u64 %rd303, %rd400, 48;
+st.u8 [%rd428+198], %rd303;
+shr.u64 %rd304, %rd400, 40;
+st.u8 [%rd428+197], %rd304;
+shr.u64 %rd305, %rd400, 32;
+st.u8 [%rd428+196], %rd305;
+shr.u64 %rd306, %rd400, 24;
+st.u8 [%rd428+195], %rd306;
+shr.u64 %rd307, %rd400, 16;
+st.u8 [%rd428+194], %rd307;
+shr.u64 %rd308, %rd400, 8;
+st.u8 [%rd428+193], %rd308;
+st.u8 [%rd428+192], %rd400;
+shr.u64 %rd309, %rd399, 56;
+st.u8 [%rd428+207], %rd309;
+shr.u64 %rd310, %rd399, 48;
+st.u8 [%rd428+206], %rd310;
+shr.u64 %rd311, %rd399, 40;
+st.u8 [%rd428+205], %rd311;
+shr.u64 %rd312, %rd399, 32;
+st.u8 [%rd428+204], %rd312;
+shr.u64 %rd313, %rd399, 24;
+st.u8 [%rd428+203], %rd313;
+shr.u64 %rd314, %rd399, 16;
+st.u8 [%rd428+202], %rd314;
+shr.u64 %rd315, %rd399, 8;
+st.u8 [%rd428+201], %rd315;
+st.u8 [%rd428+200], %rd399;
+shr.u64 %rd316, %rd398, 56;
+st.u8 [%rd428+215], %rd316;
+shr.u64 %rd317, %rd398, 48;
+st.u8 [%rd428+214], %rd317;
+shr.u64 %rd318, %rd398, 40;
+st.u8 [%rd428+213], %rd318;
+shr.u64 %rd319, %rd398, 32;
+st.u8 [%rd428+212], %rd319;
+shr.u64 %rd320, %rd398, 24;
+st.u8 [%rd428+211], %rd320;
+shr.u64 %rd321, %rd398, 16;
+st.u8 [%rd428+210], %rd321;
+shr.u64 %rd322, %rd398, 8;
+st.u8 [%rd428+209], %rd322;
+st.u8 [%rd428+208], %rd398;
+shr.u64 %rd323, %rd397, 56;
+st.u8 [%rd428+223], %rd323;
+shr.u64 %rd324, %rd397, 48;
+st.u8 [%rd428+222], %rd324;
+shr.u64 %rd325, %rd397, 40;
+st.u8 [%rd428+221], %rd325;
+shr.u64 %rd326, %rd397, 32;
+st.u8 [%rd428+220], %rd326;
+shr.u64 %rd327, %rd397, 24;
+st.u8 [%rd428+219], %rd327;
+shr.u64 %rd328, %rd397, 16;
+st.u8 [%rd428+218], %rd328;
+shr.u64 %rd329, %rd397, 8;
+st.u8 [%rd428+217], %rd329;
+st.u8 [%rd428+216], %rd397;
+shr.u64 %rd330, %rd396, 56;
+st.u8 [%rd428+231], %rd330;
+shr.u64 %rd331, %rd396, 48;
+st.u8 [%rd428+230], %rd331;
+shr.u64 %rd332, %rd396, 40;
+st.u8 [%rd428+229], %rd332;
+shr.u64 %rd333, %rd396, 32;
+st.u8 [%rd428+228], %rd333;
+shr.u64 %rd334, %rd396, 24;
+st.u8 [%rd428+227], %rd334;
+shr.u64 %rd335, %rd396, 16;
+st.u8 [%rd428+226], %rd335;
+shr.u64 %rd336, %rd396, 8;
+st.u8 [%rd428+225], %rd336;
+st.u8 [%rd428+224], %rd396;
+shr.u64 %rd337, %rd421, 56;
+st.u8 [%rd428+239], %rd337;
+shr.u64 %rd338, %rd421, 48;
+st.u8 [%rd428+238], %rd338;
+shr.u64 %rd339, %rd421, 40;
+st.u8 [%rd428+237], %rd339;
+shr.u64 %rd340, %rd421, 32;
+st.u8 [%rd428+236], %rd340;
+shr.u64 %rd341, %rd421, 24;
+st.u8 [%rd428+235], %rd341;
+shr.u64 %rd342, %rd421, 16;
+st.u8 [%rd428+234], %rd342;
+shr.u64 %rd343, %rd421, 8;
+st.u8 [%rd428+233], %rd343;
+st.u8 [%rd428+232], %rd421;
+shr.u64 %rd344, %rd422, 56;
+st.u8 [%rd428+247], %rd344;
+shr.u64 %rd345, %rd422, 48;
+st.u8 [%rd428+246], %rd345;
+shr.u64 %rd346, %rd422, 40;
+st.u8 [%rd428+245], %rd346;
+shr.u64 %rd347, %rd422, 32;
+st.u8 [%rd428+244], %rd347;
+shr.u64 %rd348, %rd422, 24;
+st.u8 [%rd428+243], %rd348;
+shr.u64 %rd349, %rd422, 16;
+st.u8 [%rd428+242], %rd349;
+shr.u64 %rd350, %rd422, 8;
+st.u8 [%rd428+241], %rd350;
+st.u8 [%rd428+240], %rd422;
+shr.u64 %rd351, %rd423, 56;
+st.u8 [%rd428+255], %rd351;
+shr.u64 %rd352, %rd423, 48;
+st.u8 [%rd428+254], %rd352;
+shr.u64 %rd353, %rd423, 40;
+st.u8 [%rd428+253], %rd353;
+shr.u64 %rd354, %rd423, 32;
+st.u8 [%rd428+252], %rd354;
+shr.u64 %rd355, %rd423, 24;
+st.u8 [%rd428+251], %rd355;
+shr.u64 %rd356, %rd423, 16;
+st.u8 [%rd428+250], %rd356;
+shr.u64 %rd357, %rd423, 8;
+st.u8 [%rd428+249], %rd357;
+st.u8 [%rd428+248], %rd423;
+shr.u64 %rd358, %rd424, 56;
+st.u8 [%rd428+263], %rd358;
+shr.u64 %rd359, %rd424, 48;
+st.u8 [%rd428+262], %rd359;
+shr.u64 %rd360, %rd424, 40;
+st.u8 [%rd428+261], %rd360;
+shr.u64 %rd361, %rd424, 32;
+st.u8 [%rd428+260], %rd361;
+shr.u64 %rd362, %rd424, 24;
+st.u8 [%rd428+259], %rd362;
+shr.u64 %rd363, %rd424, 16;
+st.u8 [%rd428+258], %rd363;
+shr.u64 %rd364, %rd424, 8;
+st.u8 [%rd428+257], %rd364;
+st.u8 [%rd428+256], %rd424;
+shr.u64 %rd365, %rd425, 56;
+st.u8 [%rd428+271], %rd365;
+shr.u64 %rd366, %rd425, 48;
+st.u8 [%rd428+270], %rd366;
+shr.u64 %rd367, %rd425, 40;
+st.u8 [%rd428+269], %rd367;
+shr.u64 %rd368, %rd425, 32;
+st.u8 [%rd428+268], %rd368;
+shr.u64 %rd369, %rd425, 24;
+st.u8 [%rd428+267], %rd369;
+shr.u64 %rd370, %rd425, 16;
+st.u8 [%rd428+266], %rd370;
+shr.u64 %rd371, %rd425, 8;
+st.u8 [%rd428+265], %rd371;
+st.u8 [%rd428+264], %rd425;
+shr.u64 %rd372, %rd426, 56;
+st.u8 [%rd428+279], %rd372;
+shr.u64 %rd373, %rd426, 48;
+st.u8 [%rd428+278], %rd373;
+shr.u64 %rd374, %rd426, 40;
+st.u8 [%rd428+277], %rd374;
+shr.u64 %rd375, %rd426, 32;
+st.u8 [%rd428+276], %rd375;
+shr.u64 %rd376, %rd426, 24;
+st.u8 [%rd428+275], %rd376;
+shr.u64 %rd377, %rd426, 16;
+st.u8 [%rd428+274], %rd377;
+shr.u64 %rd378, %rd426, 8;
+st.u8 [%rd428+273], %rd378;
+st.u8 [%rd428+272], %rd426;
+shr.u64 %rd379, %rd427, 56;
+st.u8 [%rd428+287], %rd379;
+shr.u64 %rd380, %rd427, 48;
+st.u8 [%rd428+286], %rd380;
+shr.u64 %rd381, %rd427, 40;
+st.u8 [%rd428+285], %rd381;
+shr.u64 %rd382, %rd427, 32;
+st.u8 [%rd428+284], %rd382;
+shr.u64 %rd383, %rd427, 24;
+st.u8 [%rd428+283], %rd383;
+shr.u64 %rd384, %rd427, 16;
+st.u8 [%rd428+282], %rd384;
+shr.u64 %rd385, %rd427, 8;
+st.u8 [%rd428+281], %rd385;
+st.u8 [%rd428+280], %rd427;
+st.u8 [%rd428+292], %rs7;
+add.s64 %rd386, %rd72, 40;
+atom.add.u64 %rd387, [%rd386], 336;
+atom.add.u64 %rd388, [%rd394], 1;
+atom.add.u64 %rd389, [%rd391], 1;
+
+BB0_18:
+ret;
+}
+
+

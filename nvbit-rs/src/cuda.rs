@@ -1,25 +1,41 @@
 use super::{CudaResult, IntoCudaResult};
-use nvbit_sys::bindings;
+use std::ffi;
 use std::{marker::PhantomData, ptr};
 
-/// A handle to a CUDA `CUcontext` context.
+/// Opaque handle to a CUDA `CUdeviceptr_v1` device.
+#[repr(transparent)]
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub struct Device {
+    inner: nvbit_sys::CUdeviceptr_v1,
+}
+
+impl Device {
+    /// Creates a new `Device` wrapping a `CUdeviceptr_v1`.
+    #[inline]
+    #[must_use]
+    pub fn wrap(inner: nvbit_sys::CUdeviceptr_v1) -> Self {
+        Self { inner }
+    }
+}
+
+/// Opaque handle to a CUDA `CUcontext` context.
 ///
 /// The handle can be used to uniquely identify a context,
 /// but not for interacting with the context.
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct ContextHandle<'a> {
-    inner: bindings::CUcontext,
+    inner: nvbit_sys::CUcontext,
     module: PhantomData<&'a ()>,
 }
 
 unsafe impl<'a> Send for ContextHandle<'a> {}
 unsafe impl<'a> Sync for ContextHandle<'a> {}
 
-/// A CUDA `CUcontext` context.
+/// Opaque handle to a CUDA `CUcontext` context.
 #[repr(transparent)]
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct Context<'a> {
-    inner: bindings::CUcontext,
+    inner: nvbit_sys::CUcontext,
     module: PhantomData<&'a ()>,
 }
 
@@ -30,8 +46,8 @@ impl<'a> Context<'a> {
     /// Creates a new `Context` wrapping a `CUcontext`.
     #[inline]
     #[must_use]
-    pub fn wrap(inner: bindings::CUcontext) -> Self {
-        Context {
+    pub fn wrap(inner: nvbit_sys::CUcontext) -> Self {
+        Self {
             inner,
             module: PhantomData,
         }
@@ -49,13 +65,13 @@ impl<'a> Context<'a> {
 
     #[inline]
     #[must_use]
-    pub fn as_ptr(&self) -> *const bindings::CUctx_st {
+    pub fn as_ptr(&self) -> *const nvbit_sys::CUctx_st {
         self.inner.cast()
     }
 
     #[inline]
     #[must_use]
-    pub fn as_mut_ptr(&mut self) -> *mut bindings::CUctx_st {
+    pub fn as_mut_ptr(&mut self) -> *mut nvbit_sys::CUctx_st {
         self.inner.cast()
     }
 }
@@ -66,7 +82,7 @@ impl<'a> Context<'a> {
 /// but not for interacting with the context.
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct FunctionHandle<'a> {
-    inner: bindings::CUfunction,
+    inner: nvbit_sys::CUfunction,
     module: PhantomData<&'a ()>,
 }
 
@@ -75,8 +91,30 @@ unsafe impl<'a> Sync for FunctionHandle<'a> {}
 
 #[repr(transparent)]
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
+pub struct Stream<'a> {
+    inner: nvbit_sys::CUstream,
+    ctx: PhantomData<Context<'a>>,
+}
+
+unsafe impl<'a> Send for Stream<'a> {}
+unsafe impl<'a> Sync for Stream<'a> {}
+
+impl<'a> Stream<'a> {
+    /// Creates a new `Stream` wrapping a `CUstream`.
+    #[inline]
+    #[must_use]
+    pub fn wrap(inner: nvbit_sys::CUstream) -> Self {
+        Self {
+            inner,
+            ctx: PhantomData,
+        }
+    }
+}
+
+#[repr(transparent)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone)]
 pub struct Function<'a> {
-    inner: bindings::CUfunction,
+    inner: nvbit_sys::CUfunction,
     ctx: PhantomData<Context<'a>>,
 }
 
@@ -84,11 +122,11 @@ unsafe impl<'a> Send for Function<'a> {}
 unsafe impl<'a> Sync for Function<'a> {}
 
 impl<'a> Function<'a> {
-    /// Creates a new `Context` wrapping a `CUcontext`.
+    /// Creates a new `Function` wrapping a `CUfunction`.
     #[inline]
     #[must_use]
-    pub fn new(inner: bindings::CUfunction) -> Self {
-        Function {
+    pub fn wrap(inner: nvbit_sys::CUfunction) -> Self {
+        Self {
             inner,
             ctx: PhantomData,
         }
@@ -106,14 +144,26 @@ impl<'a> Function<'a> {
 
     #[inline]
     #[must_use]
-    pub fn as_ptr(&self) -> *const bindings::CUfunc_st {
+    pub fn as_ptr(&self) -> *const nvbit_sys::CUfunc_st {
         self.inner.cast()
     }
 
     #[inline]
     #[must_use]
-    pub fn as_mut_ptr(&mut self) -> *mut bindings::CUfunc_st {
+    pub fn as_mut_ptr(&mut self) -> *mut nvbit_sys::CUfunc_st {
         self.inner.cast()
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn name<'c>(&mut self, ctx: &mut Context<'c>) -> &'a str {
+        super::get_func_name(ctx, self)
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn addr(&mut self) -> u64 {
+        super::get_func_addr(self)
     }
 }
 
@@ -133,9 +183,9 @@ pub enum FunctionAttribute {
     Max,
 }
 
-impl From<FunctionAttribute> for bindings::CUfunction_attribute_enum {
-    fn from(point: FunctionAttribute) -> bindings::CUfunction_attribute_enum {
-        use bindings::CUfunction_attribute_enum as ATTR;
+impl From<FunctionAttribute> for nvbit_sys::CUfunction_attribute_enum {
+    fn from(point: FunctionAttribute) -> nvbit_sys::CUfunction_attribute_enum {
+        use nvbit_sys::CUfunction_attribute_enum as ATTR;
         match point {
             FunctionAttribute::MaxThreadsPerBlock => ATTR::CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
             FunctionAttribute::SharedSizeBytes => ATTR::CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
@@ -188,10 +238,77 @@ impl<'a> Function<'a> {
     pub fn get_attribute(&mut self, attr: FunctionAttribute) -> CudaResult<i32> {
         let mut val = 0i32;
         let result = unsafe {
-            // &mut val as *mut _
-            bindings::cuFuncGetAttribute(ptr::addr_of_mut!(val), attr.into(), self.as_mut_ptr())
+            nvbit_sys::cuFuncGetAttribute(ptr::addr_of_mut!(val), attr.into(), self.as_mut_ptr())
         };
         result.into_result()?;
         Ok(val)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Dim {
+    pub x: u32,
+    pub y: u32,
+    pub z: u32,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub enum CudaEventParams<'a> {
+    KernelLaunch {
+        func: Function<'a>,
+        grid: Dim,
+        block: Dim,
+        shared_mem_bytes: u32,
+        h_stream: Stream<'a>,
+        kernel_params: *mut *mut ffi::c_void,
+        extra: *mut *mut ffi::c_void,
+    },
+    MemCopyHostToDevice {
+        dest_device: Device,
+        src_host: *const ffi::c_void,
+        bytes: u32,
+    },
+    ProfilerStart,
+    ProfilerStop,
+}
+
+impl<'a> CudaEventParams<'a> {
+    pub fn new(cbid: nvbit_sys::nvbit_api_cuda_t, params: *mut ffi::c_void) -> Option<Self> {
+        use nvbit_sys::nvbit_api_cuda_t as cuda_t;
+        match cbid {
+            cuda_t::API_CUDA_cuMemcpyHtoD_v2 => {
+                let p = unsafe { &mut *params.cast::<nvbit_sys::cuMemcpyHtoD_params>() };
+                Some(Self::MemCopyHostToDevice {
+                    dest_device: Device::wrap(p.dstDevice),
+                    src_host: p.srcHost,
+                    bytes: p.ByteCount,
+                })
+            }
+            cuda_t::API_CUDA_cuProfilerStart => Some(Self::ProfilerStart),
+            cuda_t::API_CUDA_cuProfilerStop => Some(Self::ProfilerStop),
+            cuda_t::API_CUDA_cuLaunchKernel_ptsz | cuda_t::API_CUDA_cuLaunchKernel => {
+                let p = unsafe { &mut *params.cast::<nvbit_sys::cuLaunchKernel_params>() };
+                Some(Self::KernelLaunch {
+                    func: Function::wrap(p.f),
+                    grid: Dim {
+                        x: p.gridDimX,
+                        y: p.gridDimY,
+                        z: p.gridDimZ,
+                    },
+                    block: Dim {
+                        x: p.blockDimX,
+                        y: p.blockDimY,
+                        z: p.blockDimZ,
+                    },
+                    shared_mem_bytes: p.sharedMemBytes,
+                    h_stream: Stream::wrap(p.hStream),
+                    kernel_params: p.kernelParams,
+                    extra: p.extra,
+                })
+            }
+            // 600+ more api calls to cover here :(
+            // _ => todo!(),
+            _ => None,
+        }
     }
 }

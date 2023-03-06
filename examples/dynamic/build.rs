@@ -1,4 +1,6 @@
 use std::path::PathBuf;
+// use regex::Regex;
+// use std::process::Command;
 
 #[must_use]
 pub fn nvbit_include() -> PathBuf {
@@ -26,7 +28,7 @@ struct ParseCallbacks {}
 
 impl bindgen::callbacks::ParseCallbacks for ParseCallbacks {
     fn add_derives(&self, info: &str) -> Vec<String> {
-        if info == "inst_trace_t" {
+        if info == "mem_access_t" {
             vec![
                 "serde::Serialize".to_string(),
                 "serde::Deserialize".to_string(),
@@ -58,41 +60,13 @@ fn generate_bindings() {
 }
 
 fn main() {
-    // for (key, value) in std::env::vars() {
-    //     println!("cargo::warning={key}: {value}");
-    //     if key.to_lowercase().contains("dep_") {
-    //         println!("cargo::warning={key}: {value}");
-    //     }
-    // }
-
-    // rerun if the build script changes
     println!("cargo:rerun-if-changed=build.rs");
 
-    // rerun if the instrumentation changes
     println!("cargo:rerun-if-changed=instrumentation");
 
     generate_bindings();
 
-    // compile the instrumentation functions
-    let tool_obj = output_path().join("tool.o");
-    let result = std::process::Command::new("nvcc")
-        .args([
-            &format!("-I{}", nvbit_include().display()),
-            &format!("-I{}", manifest_path().join("instrumentation").display()),
-            "-Xcompiler",
-            "-fPIC",
-            "-dc",
-            "-c",
-            "instrumentation/tool.cu",
-            "-o",
-            &tool_obj.to_string_lossy(),
-        ])
-        .output()
-        .expect("nvcc failed");
-    println!("nvcc result: {}", String::from_utf8_lossy(&result.stderr));
-    assert!(result.status.success());
-
-    // compile the instrumentation functions
+    // compile the instrumentation function
     let instrument_inst_obj = output_path().join("instrument_inst.o");
     let result = std::process::Command::new("nvcc")
         .args([
@@ -107,6 +81,25 @@ fn main() {
             "instrumentation/instrument_inst.cu",
             "-o",
             &instrument_inst_obj.to_string_lossy(),
+        ])
+        .output()
+        .expect("nvcc failed");
+    println!("nvcc result: {}", String::from_utf8_lossy(&result.stderr));
+    assert!(result.status.success());
+
+    // compile the helper functions for flushing the channel etc.
+    let tool_obj = output_path().join("tool.o");
+    let result = std::process::Command::new("nvcc")
+        .args([
+            &format!("-I{}", nvbit_include().display()),
+            &format!("-I{}", manifest_path().join("instrumentation").display()),
+            "-Xcompiler",
+            "-fPIC",
+            "-dc",
+            "-c",
+            "instrumentation/tool.cu",
+            "-o",
+            &tool_obj.to_string_lossy(),
         ])
         .output()
         .expect("nvcc failed");
@@ -149,4 +142,39 @@ fn main() {
 
     println!("cargo:rustc-link-search=native={}", output_path().display());
     println!("cargo:rustc-link-lib=static:+whole-archive=instrumentation");
+
+    
+    // let cuobjdump_bin_path: PathBuf = std::env::var("CUDA_INSTALL_PATH")
+    //     .ok()
+    //     .map(|cuda_install| [&cuda_install, "bin", "cuobjdump"].iter().collect())
+    //     .and_then(|bin: PathBuf| if bin.exists() { Some(bin) } else { None })
+    //     .unwrap_or(PathBuf::from("cuobjdump"));
+    // let cuobjdump_ptx_files = Command::new(&cuobjdump_bin_path)
+    //     .arg("-lptx")
+    //     .arg(&inject_obj)
+    //     .output()
+    //     .unwrap();
+    // let cuobjdump_ptx_files = String::from_utf8(cuobjdump_ptx_files.stdout).unwrap();
+
+    // lazy_static::lazy_static! {
+    //     static ref PTX_FILE_REG: Regex = Regex::new(r"PTX file\s*\d*:\s*(?P<ptx_file>\S*)\s*").unwrap();
+    // }
+
+    // let ptx_files: Vec<&str> = PTX_FILE_REG
+    //     .captures_iter(&cuobjdump_ptx_files)
+    //     .filter_map(|cap| cap.name("ptx_file"))
+    //     .map(|cap| cap.as_str())
+    //     .collect();
+
+    // // println!("cargo:warning={:?}", &ptx_files);
+
+    // for ptx_file in ptx_files {
+    //     Command::new(&cuobjdump_bin_path)
+    //         .current_dir(output_path())
+    //         .arg("-xptx")
+    //         .arg(&ptx_file)
+    //         .arg(&inject_obj)
+    //         .output()
+    //         .unwrap();
+    // }
 }

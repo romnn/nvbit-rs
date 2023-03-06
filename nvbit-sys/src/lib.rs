@@ -11,3 +11,5 @@ pub mod utils;
 pub mod bindings {
     include!(concat!(env!("OUT_DIR"), "/bindings/nvbit.rs"));
 }
+
+pub use bindings::*;

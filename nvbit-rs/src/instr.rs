@@ -5,7 +5,6 @@ use std::{ffi, fmt, pin::Pin};
 /// An instruction operand.
 #[repr(transparent)]
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct Operand<'a> {
     ptr: *const nvbit::operand_t,
     instr: PhantomData<Instruction<'a>>,
@@ -17,10 +16,50 @@ impl<'a> Operand<'a> {
     pub fn into_owned(&self) -> nvbit::operand_t {
         unsafe { *self.ptr }
     }
+
+    pub fn kind(&self) -> OperandKind {
+        let kind = unsafe { *self.ptr }.type_;
+        kind.into()
+    }
+}
+
+/// Operand kind
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
+pub enum OperandKind {
+    ImmutableUint64 = 0,
+    ImmutableDouble = 1,
+    Register = 2,
+    Predicate = 3,
+    // todo: what does that mean?
+    URegister = 4,
+    // todo: what does that mean?
+    UPredicate = 5,
+    CBank = 6,
+    MemRef = 7,
+    Generic = 8,
+}
+
+impl From<bindings::InstrType_OperandType> for OperandKind {
+    #[inline]
+    #[must_use]
+    fn from(kind: bindings::InstrType_OperandType) -> Self {
+        use bindings::InstrType_OperandType as OPT;
+        match kind {
+            OPT::IMM_UINT64 => OperandKind::ImmutableUint64,
+            OPT::IMM_DOUBLE => OperandKind::ImmutableDouble,
+            OPT::REG => OperandKind::Register,
+            OPT::PRED => OperandKind::Predicate,
+            OPT::UREG => OperandKind::URegister,
+            OPT::UPRED => OperandKind::UPredicate,
+            OPT::CBANK => OperandKind::CBank,
+            OPT::MREF => OperandKind::MemRef,
+            OPT::GENERIC => OperandKind::Generic,
+        }
+    }
 }
 
 /// Identifier of GPU memory space.
-#[derive(Debug)]
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
 pub enum MemorySpace {
     None,
     Local,
@@ -229,6 +268,14 @@ impl<'a> Instruction<'a> {
     /// number of operands
     #[inline]
     #[must_use]
+    pub fn operands(&mut self) -> impl Iterator<Item = Operand<'a>> + '_ {
+        let num_operands = self.num_operands();
+        (0..num_operands).map(|i| self.operand(i)).filter_map(|i| i)
+    }
+
+    /// number of operands
+    #[inline]
+    #[must_use]
     pub fn num_operands(&mut self) -> usize {
         self.pin_mut().getNumOperands().unsigned_abs() as usize
     }
@@ -272,7 +319,7 @@ impl<'a> Instruction<'a> {
 }
 
 /// Insertion point where the instrumentation for an instruction should be inserted
-#[derive(Debug, Clone, Copy)]
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
 pub enum InsertionPoint {
     Before,
     After,

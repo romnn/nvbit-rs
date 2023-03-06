@@ -27,7 +27,7 @@ pub fn get_related_functions<'c, 'f>(
     related_functions
         .pin_mut()
         .iter_mut()
-        .map(|mut f| Function::new(f.as_mut_ptr()))
+        .map(|mut f| Function::wrap(f.as_mut_ptr()))
         .collect()
 }
 
@@ -153,7 +153,7 @@ pub fn get_local_mem_base_addr<'c>(ctx: &mut Context<'c>) -> u64 {
     unsafe { bindings::nvbit_get_local_mem_base_addr(ctx.as_mut_ptr()) }
 }
 
-/// Run instrumented on original function
+/// Run instrumentation on original function.
 ///
 /// Also enables instrumentation for its related functions
 /// if the `related` flag is set.
@@ -169,16 +169,22 @@ pub fn enable_instrumented<'c, 'f>(
 }
 
 /// Set arguments at launch time,
-/// that will be loaded on input argument of the instrumentation function
+///
+/// Will be loaded on input argument of the instrumentation function.
 pub fn set_at_launch<'c, 'f, T>(
-    _ctx: &mut Context<'c>,
-    _func: &mut Function<'f>,
-    _args: &T,
-    _nbytes: u32,
+    ctx: &mut Context<'c>,
+    func: &mut Function<'f>,
+    value: &mut T,
 ) {
-    // todo
-    // void nvbit_set_at_launch(CUcontext ctx, CUfunction func, void* buf,
-    //                          uint32_t nbytes);
+    let nbytes = std::mem::size_of::<T>();
+    unsafe {
+        bindings::nvbit_set_at_launch(
+            ctx.as_mut_ptr(),
+            func.as_mut_ptr(),
+            value as *mut T as *mut std::ffi::c_void,
+            nbytes.try_into().unwrap(),
+        );
+    };
 }
 
 /// Notify nvbit of a pthread used by the tool.

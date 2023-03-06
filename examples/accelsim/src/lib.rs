@@ -4,7 +4,6 @@ mod instrument_inst;
 
 use lazy_static::lazy_static;
 use nvbit_rs::{DeviceChannel, HostChannel};
-use nvbit_sys::bindings;
 use rustacuda::memory::UnifiedBox;
 use std::collections::{HashMap, HashSet};
 use std::ffi;
@@ -173,10 +172,10 @@ impl<'c> Instrumentor<'c> {
         if num_operands > 0 {
             let first_operand = instr.operand(0).unwrap().into_owned();
             match first_operand.type_ {
-                bindings::InstrType_OperandType::REG => {
+                nvbit_sys::InstrType_OperandType::REG => {
                     dst_oprd = unsafe { first_operand.u.reg.num };
                 }
-                bindings::InstrType_OperandType::MREF => {
+                nvbit_sys::InstrType_OperandType::MREF => {
                     src_oprd[0] = unsafe { first_operand.u.mref.ra_num };
                     mem_oper_idx = 0;
                     src_num += 1;
@@ -193,7 +192,7 @@ impl<'c> Instrumentor<'c> {
             assert!((i as usize) < num_operands);
             let op = instr.operand(i as usize).unwrap().into_owned();
             match op.type_ {
-                bindings::InstrType_OperandType::MREF => {
+                nvbit_sys::InstrType_OperandType::MREF => {
                     // mem is found
                     assert!(src_num < common::MAX_SRC as usize);
                     src_oprd[src_num] = unsafe { op.u.mref.ra_num };
@@ -202,7 +201,7 @@ impl<'c> Instrumentor<'c> {
                     assert!(mem_oper_idx == -1); // ensure one memory operand per inst
                     mem_oper_idx += 1;
                 }
-                bindings::InstrType_OperandType::REG => {
+                nvbit_sys::InstrType_OperandType::REG => {
                     // reg is found
                     assert!(src_num < common::MAX_SRC as usize);
                     src_oprd[src_num] = unsafe { op.u.reg.num };
@@ -267,7 +266,7 @@ impl<'c> Instrumentor<'c> {
             nvbit_rs::get_related_functions(&mut self.ctx.lock().unwrap(), func);
 
         for f in related_functions.iter_mut().chain([func]) {
-            let mut f = nvbit_rs::Function::new(f.as_mut_ptr());
+            let mut f = nvbit_rs::Function::wrap(f.as_mut_ptr());
 
             let func_name = nvbit_rs::get_func_name(&mut self.ctx.lock().unwrap(), &mut f);
             let func_addr = nvbit_rs::get_func_addr(&mut f);
@@ -314,10 +313,10 @@ pub extern "C" fn nvbit_at_init() {
 pub unsafe extern "C" fn nvbit_at_cuda_event(
     ctx: nvbit_rs::Context<'static>,
     is_exit: ffi::c_int,
-    cbid: bindings::nvbit_api_cuda_t,
+    cbid: nvbit_sys::nvbit_api_cuda_t,
     event_name: *const ffi::c_char,
     params: *mut ffi::c_void,
-    pstatus: *mut bindings::CUresult,
+    pstatus: *mut nvbit_sys::CUresult,
 ) {
     let is_exit = is_exit != 0;
     let event_name = unsafe { ffi::CStr::from_ptr(event_name).to_str().unwrap() };
@@ -334,10 +333,10 @@ impl<'c> Instrumentor<'c> {
     fn at_cuda_event(
         &self,
         is_exit: bool,
-        cbid: bindings::nvbit_api_cuda_t,
+        cbid: nvbit_sys::nvbit_api_cuda_t,
         _event_name: &str,
         params: *mut ffi::c_void,
-        _pstatus: *mut bindings::CUresult,
+        _pstatus: *mut nvbit_sys::CUresult,
     ) {
         if *self.skip_flag.lock().unwrap() {
             return;
@@ -345,17 +344,6 @@ impl<'c> Instrumentor<'c> {
 
         // if self.first_call {
         //     self.first_call = false;
-        // }
-
-        // if (mkdir("traces", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
-        //   if (errno == EEXIST) {
-        //     // alredy exists
-        //   } else {
-        //     // something else
-        //     std::cout << "cannot create folder error:" << strerror(errno)
-        //               << std::endl;
-        //     return;
-        //   }
         // }
 
         if self.active_from_start {
@@ -366,23 +354,6 @@ impl<'c> Instrumentor<'c> {
             }
         }
 
-        // if(user_defined_folders == 1)
-        // {
-        //   std::string usr_folder = std::getenv("TRACES_FOLDER");
-        //   std::string temp_traces_location = usr_folder;
-        //   std::string temp_kernelslist_location = usr_folder + "/kernelslist";
-        //   std::string temp_stats_location = usr_folder + "/stats.csv";
-        //   traces_location.resize(temp_traces_location.size());
-        //   kernelslist_location.resize(temp_kernelslist_location.size());
-        //   stats_location.resize(temp_stats_location.size());
-        //   traces_location.replace(traces_location.begin(), traces_location.end(),temp_traces_location);
-        //   kernelslist_location.replace(kernelslist_location.begin(), kernelslist_location.end(),temp_kernelslist_location);
-        //   stats_location.replace(stats_location.begin(), stats_location.end(),temp_stats_location);
-        //   printf("\n Traces location is %s \n", traces_location.c_str());
-        //   printf("Kernelslist location is %s \n", kernelslist_location.c_str());
-        //   printf("Stats location is %s \n", stats_location.c_str());
-        // }
-
         // kernelsFile = fopen(kernelslist_location.c_str(), "w");
         // statsFile = fopen(stats_location.c_str(), "w");
         // fprintf(statsFile,
@@ -390,14 +361,13 @@ impl<'c> Instrumentor<'c> {
         //         "#blocks, block_dimX, block_dimY, block_dimZ, #threads, "
         //         "total_insts, total_reported_insts\n");
         // fclose(statsFile);
-        // }
 
         match cbid {
-            bindings::nvbit_api_cuda_t::API_CUDA_cuMemcpyHtoD_v2 => {
+            nvbit_sys::nvbit_api_cuda_t::API_CUDA_cuMemcpyHtoD_v2 => {
                 if !is_exit {
-                    let p = unsafe { &mut *params.cast::<bindings::cuMemcpyHtoD_v2_params>() };
-                    // let p: &mut bindings::cuMemcpyHtoD_v2_params =
-                    //     unsafe { &mut *(params as *mut bindings::cuMemcpyHtoD_v2_params) };
+                    let p = unsafe { &mut *params.cast::<nvbit_sys::cuMemcpyHtoD_v2_params>() };
+                    // let p: &mut nvbit_sys::cuMemcpyHtoD_v2_params =
+                    //     unsafe { &mut *(params as *mut nvbit_sys::cuMemcpyHtoD_v2_params) };
 
                     dbg!(&p);
                     // char buffer[1024];
@@ -408,11 +378,11 @@ impl<'c> Instrumentor<'c> {
                     // fclose(kernelsFile);
                 }
             }
-            bindings::nvbit_api_cuda_t::API_CUDA_cuLaunchKernel_ptsz
-            | bindings::nvbit_api_cuda_t::API_CUDA_cuLaunchKernel => {
-                let p = unsafe { &mut *params.cast::<bindings::cuLaunchKernel_params>() };
+            nvbit_sys::nvbit_api_cuda_t::API_CUDA_cuLaunchKernel_ptsz
+            | nvbit_sys::nvbit_api_cuda_t::API_CUDA_cuLaunchKernel => {
+                let p = unsafe { &mut *params.cast::<nvbit_sys::cuLaunchKernel_params>() };
                 dbg!(&p);
-                let mut pf = nvbit_rs::Function::new(p.f);
+                let mut pf = nvbit_rs::Function::wrap(p.f);
 
                 if is_exit {
                     *self.skip_flag.lock().unwrap() = true;
@@ -513,13 +483,13 @@ impl<'c> Instrumentor<'c> {
                     *self.kernelid.lock().unwrap() += 1;
                 }
             }
-            bindings::nvbit_api_cuda_t::API_CUDA_cuProfilerStart => {
+            nvbit_sys::nvbit_api_cuda_t::API_CUDA_cuProfilerStart => {
                 // if is_exit && !*self.active_from_start.lock().unwrap() {
                 if is_exit && !self.active_from_start {
                     *self.active_region.lock().unwrap() = true;
                 }
             }
-            bindings::nvbit_api_cuda_t::API_CUDA_cuProfilerStop => {
+            nvbit_sys::nvbit_api_cuda_t::API_CUDA_cuProfilerStop => {
                 if is_exit && !self.active_from_start {
                     *self.active_region.lock().unwrap() = false;
                 }
@@ -547,26 +517,30 @@ pub extern "C" fn nvbit_at_ctx_init(ctx: nvbit_rs::Context<'static>) {
 #[inline(never)]
 pub extern "C" fn nvbit_at_ctx_term(ctx: nvbit_rs::Context<'static>) {
     println!("nvbit_at_ctx_term");
-    if let Some(instrumentor) = CONTEXTS.read().unwrap().get(&ctx.handle()) {
-        // stop the host channel
-        instrumentor
-            .host_channel
-            .lock()
-            .unwrap()
-            .stop()
-            .expect("stop host channel");
-        // finish receiving packets
-        if let Some(recv_thread) = instrumentor.recv_thread.lock().unwrap().take() {
-            recv_thread.join().expect("join receiver thread");
-        }
+    let lock = CONTEXTS.read().unwrap();
+    let Some(instrumentor) = lock.get(&ctx.handle()) else {
+        return;
+    };
 
-        instrumentor.at_ctx_term();
+    // stop the host channel
+    instrumentor
+        .host_channel
+        .lock()
+        .unwrap()
+        .stop()
+        .expect("stop host channel");
 
-        println!(
-            "done after {:?}",
-            Instant::now().duration_since(instrumentor.start)
-        );
+    // finish receiving packets
+    if let Some(recv_thread) = instrumentor.recv_thread.lock().unwrap().take() {
+        recv_thread.join().expect("join receiver thread");
     }
+
+    instrumentor.at_ctx_term();
+
+    println!(
+        "done after {:?}",
+        Instant::now().duration_since(instrumentor.start)
+    );
     // this will lead to problems:
     // CONTEXTS.write().unwrap().remove(&ctx.handle());
 }
