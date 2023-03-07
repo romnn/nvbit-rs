@@ -2,6 +2,7 @@
 members = [
   "nvbit-sys",
   "nvbit-rs",
+  "nvbit-build",
   "examples/*"
 ]
 

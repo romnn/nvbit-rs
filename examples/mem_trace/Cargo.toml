@@ -21,3 +21,4 @@ cc = "1"
 bindgen = "0.61"
 lazy_static = "1"
 regex = "1"
+nvbit-build = { path = "../../nvbit-build" }

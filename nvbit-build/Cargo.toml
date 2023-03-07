@@ -1,0 +1,31 @@
+[package]
+name = "nvbit-build"
+version = "0.0.6"
+edition = "2021"
+publish = true
+authors = ["romnn <contact@romnn.com>"]
+description = "Build-time helpers for compiling NVIDIA NVBIT instrumentation"
+license-file = "../LICENSE"
+readme = "../README.md"
+documentation = "https://docs.rs/nvbit-build"
+homepage = "https://github.com/romnn/nvbit-rs"
+repository = "https://github.com/romnn/nvbit-rs"
+categories = [
+  "external-ffi-bindings",
+  "development-tools::profiling",
+  "os::unix-apis",
+]
+keywords = [
+  "nvbit",
+  "profiling",
+  "gpgpu",
+  "nvidia",
+  "ffi",
+]
+exclude = []
+
+[lib]
+crate-type = ["rlib", "cdylib", "staticlib"]
+
+[dependencies]
+thiserror = "1"
