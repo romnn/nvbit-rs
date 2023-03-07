@@ -22,8 +22,22 @@ mod common {
 
 use common::mem_access_t;
 
+fn traces_dir() -> PathBuf {
+    let example_dir = PathBuf::from(file!())
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    let traces_dir =
+        std::env::var("TRACES_DIR").map_or_else(|_| example_dir.join("traces"), PathBuf::from);
+    // make sure trace dir exists
+    std::fs::create_dir_all(&traces_dir).ok();
+    traces_dir
+}
+
 #[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
-pub struct MemAccessTraceEntry<'a> {
+struct MemAccessTraceEntry<'a> {
     pub cuda_ctx: u64,
     pub grid_launch_id: u64,
     pub cta_id_x: u32,
@@ -38,14 +52,14 @@ pub struct MemAccessTraceEntry<'a> {
 
 #[allow(non_snake_case)]
 #[derive(Debug, Default, Clone)]
-pub struct Args {
+struct Args {
     pub opcode_id: std::ffi::c_int,
     pub mref_idx: u64,
     pub pchannel_dev: u64,
 }
 
 impl Args {
-    pub fn instrument<'a>(&self, instr: &mut nvbit_rs::Instruction<'a>) {
+    pub fn instrument(&self, instr: &mut nvbit_rs::Instruction<'_>) {
         // predicate value
         instr.add_call_arg_guard_pred_val();
         // opcode id
@@ -101,7 +115,7 @@ impl Instrumentor<'static> {
         // start receiving from the channel
         let instrumentor_clone = instrumentor.clone();
         *instrumentor.recv_thread.lock().unwrap() = Some(std::thread::spawn(move || {
-            instrumentor_clone.read_channel()
+            instrumentor_clone.read_channel();
         }));
 
         instrumentor
@@ -109,20 +123,8 @@ impl Instrumentor<'static> {
 
     fn read_channel(self: Arc<Self>) {
         let rx = self.host_channel.lock().unwrap().read();
-        let example_dir = PathBuf::from(file!())
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .to_path_buf();
-        let traces_dir = std::env::var("TRACES_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| example_dir.join("traces"));
 
-        // make sure trace dir exists
-        std::fs::create_dir_all(&traces_dir).unwrap();
-
-        let trace_file_path = traces_dir.join("kernelslist");
+        let trace_file_path = traces_dir().join("kernelslist");
         let mut file = std::io::BufWriter::new(
             std::fs::OpenOptions::new()
                 .write(true)
@@ -133,7 +135,7 @@ impl Instrumentor<'static> {
         );
         let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
         let mut serializer = serde_json::Serializer::with_formatter(&mut file, formatter);
-        let mut encoder = nvbit_rs::Encoder::new(&mut serializer);
+        let mut encoder = nvbit_rs::Encoder::new(&mut serializer).unwrap();
 
         // start the thread here
         let mut packet_count = 0;
@@ -157,10 +159,10 @@ impl Instrumentor<'static> {
             let entry = MemAccessTraceEntry {
                 cuda_ctx,
                 grid_launch_id: packet.grid_launch_id,
-                cta_id_x: packet.cta_id_x.abs() as u32,
-                cta_id_y: packet.cta_id_y.abs() as u32,
-                cta_id_z: packet.cta_id_z.abs() as u32,
-                warp_id: packet.warp_id.abs() as u32,
+                cta_id_x: packet.cta_id_x.unsigned_abs(),
+                cta_id_y: packet.cta_id_y.unsigned_abs(),
+                cta_id_z: packet.cta_id_z.unsigned_abs(),
+                warp_id: packet.warp_id.unsigned_abs(),
                 opcode,
                 addrs: packet.addrs,
             };
@@ -191,14 +193,14 @@ impl<'c> Instrumentor<'c> {
         params: *mut ffi::c_void,
         _pstatus: *mut nvbit_sys::CUresult,
     ) {
-        use nvbit_rs::CudaEventParams;
+        use nvbit_rs::EventParams;
         if *self.skip_flag.lock().unwrap() {
             return;
         }
 
-        let params = CudaEventParams::new(cbid, params);
+        let params = EventParams::new(cbid, params);
 
-        if let Some(CudaEventParams::KernelLaunch {
+        if let Some(EventParams::KernelLaunch {
             mut func,
             grid,
             block,
@@ -222,7 +224,7 @@ impl<'c> Instrumentor<'c> {
                 let pc = func.addr();
 
                 println!("MEMTRACE: CTX {:#06x} - LAUNCH", ctx.as_ptr() as u64);
-                println!("\tKernel pc: {:#06x}", pc);
+                println!("\tKernel pc: {pc:#06x}");
                 println!("\tKernel name: {func_name}");
                 println!("\tGrid launch id: {grid_launch_id}");
                 println!("\tGrid size: {grid}");
@@ -237,12 +239,12 @@ impl<'c> Instrumentor<'c> {
                 *grid_launch_id += 1;
 
                 // enable instrumented code to run
-                nvbit_rs::enable_instrumented(ctx, &mut func, true, true);
+                func.enable_instrumented(ctx, true, true);
             }
         }
     }
 
-    fn instrument_instruction<'f>(&self, instr: &mut nvbit_rs::Instruction<'f>) {
+    fn instrument_instruction(&self, instr: &mut nvbit_rs::Instruction<'_>) {
         instr.print_decoded();
 
         let opcode = instr.opcode().expect("has opcode");
@@ -280,35 +282,21 @@ impl<'c> Instrumentor<'c> {
 
     fn instrument_function_if_needed<'f: 'c>(&self, func: &mut nvbit_rs::Function<'f>) {
         let mut related_functions = func.related_functions(&mut self.ctx.lock().unwrap());
-        // nvbit_rs::get_related_functions(&mut self.ctx.lock().unwrap(), func);
-
         for f in related_functions.iter_mut().chain([func]) {
-            // let mut f = nvbit_rs::Function::wrap(f.as_mut_ptr());
-
-            // let func_name = nvbit_rs::get_func_name(&mut self.ctx.lock().unwrap(), &mut f);
-            // let func_addr = nvbit_rs::get_func_addr(&mut f);
+            let func_name = f.name(&mut self.ctx.lock().unwrap());
+            let func_addr = f.addr();
 
             if !self.already_instrumented.lock().unwrap().insert(f.handle()) {
-                println!(
-                    "already instrumented function {} at address {:#X}",
-                    f.name(&mut self.ctx.lock().unwrap()),
-                    f.addr()
-                );
+                println!("already instrumented function {func_name} at address {func_addr:#X}");
                 continue;
             }
 
-            println!(
-                "inspecting function {} at address {:#X}",
-                f.name(&mut self.ctx.lock().unwrap()),
-                f.addr()
-            );
+            println!("inspecting function {func_name} at address {func_addr:#X}");
 
-            // let mut instrs = nvbit_rs::get_instrs(&mut self.ctx.lock().unwrap(), &mut f);
-            // let mut instrs = nvbit_rs::get_instrs(&mut self.ctx.lock().unwrap(), f);
             let mut instrs = f.instructions(&mut self.ctx.lock().unwrap());
 
             // iterate on all the static instructions in the function
-            for (cnt, instr) in &mut instrs.iter_mut().enumerate() {
+            for (cnt, instr) in instrs.iter_mut().enumerate() {
                 if cnt < self.instr_begin_interval || cnt >= self.instr_end_interval {
                     continue;
                 }
@@ -341,10 +329,7 @@ pub unsafe extern "C" fn nvbit_at_cuda_event(
     pstatus: *mut nvbit_sys::CUresult,
 ) {
     let is_exit = is_exit != 0;
-    println!(
-        "nvbit_at_cuda_event: {} (is_exit = {})",
-        event_name, is_exit
-    );
+    println!("nvbit_at_cuda_event: {event_name} (is_exit = {is_exit})");
 
     let lock = CONTEXTS.read().unwrap();
     let Some(instrumentor) = lock.get(&ctx.handle()) else {

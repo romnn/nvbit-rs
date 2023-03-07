@@ -36,8 +36,7 @@ fn find_cuda_windows() -> Vec<PathBuf> {
         // CUDA_PATH matches Windows.
         if target_components[2] != "windows" {
             println!(
-                "cargo:warning=CUDA_PATH env variable is used on Windows, yet build target is {}",
-                target
+                "cargo:warning=CUDA_PATH env variable is used on Windows, yet build target is {target}"
             );
             return vec![];
         }
@@ -46,8 +45,7 @@ fn find_cuda_windows() -> Vec<PathBuf> {
         debug_assert_eq!(
             target_components.get(1).copied(),
             Some("pc"),
-            "Expected a Windows target to have the second component be 'pc'. Target: {}",
-            target
+            "Expected a Windows target to have the second component be 'pc'. Target: {target}"
         );
 
         // x86_64 should use the libs in the "lib/x64" directory.

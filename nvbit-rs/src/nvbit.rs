@@ -1,14 +1,10 @@
-#![allow(clippy::needless_lifetimes)]
+#![allow(clippy::missing_panics_doc)]
 
 use super::{Context, Function, Instruction, CFG};
 use nvbit_sys::{bindings, nvbit};
 use std::ffi;
 
-// #[must_use]
-// pub fn version() -> &'static str {
-//     std::str::from_utf8(bindings::NVBIT_VERSION).unwrap()
-// }
-
+/// Shim that wraps a CUDA event name.
 #[repr(transparent)]
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct CudaEventName {
@@ -46,8 +42,8 @@ pub fn version() -> &'static str {
 
 /// Get related functions for given `CUfunction`
 #[must_use]
-pub fn get_related_functions<'c, 'f>(
-    ctx: &mut Context<'c>,
+pub fn get_related_functions<'f>(
+    ctx: &mut Context<'_>,
     func: &mut Function<'f>,
 ) -> Vec<Function<'f>> {
     let c = ctx.as_mut_ptr();
@@ -64,7 +60,7 @@ pub fn get_related_functions<'c, 'f>(
 
 /// Get instructions composing the `CUfunction`
 #[must_use]
-pub fn get_instrs<'c, 'f>(ctx: &mut Context<'c>, func: &mut Function<'f>) -> Vec<Instruction<'f>> {
+pub fn get_instrs<'f>(ctx: &mut Context<'_>, func: &mut Function<'f>) -> Vec<Instruction<'f>> {
     let c = ctx.as_mut_ptr();
     let f = func.as_mut_ptr();
     let mut instructions: cxx::UniquePtr<cxx::Vector<nvbit::InstrShim>> =
@@ -79,7 +75,7 @@ pub fn get_instrs<'c, 'f>(ctx: &mut Context<'c>, func: &mut Function<'f>) -> Vec
 
 /// Get control flow graph (CFG)
 #[must_use]
-pub fn get_cfg<'c, 'f>(ctx: &mut Context<'c>, func: &mut Function<'f>) -> CFG<'f> {
+pub fn get_cfg<'f>(ctx: &mut Context<'_>, func: &mut Function<'f>) -> CFG<'f> {
     // const CFG_t& nvbit_get_CFG(CUcontext ctx, CUfunction func);
     // TODO
     let _cfg = unsafe { bindings::nvbit_get_CFG(ctx.as_mut_ptr(), func.as_mut_ptr()) };
@@ -88,7 +84,7 @@ pub fn get_cfg<'c, 'f>(ctx: &mut Context<'c>, func: &mut Function<'f>) -> CFG<'f
 
 /// Get the function name from a `CUfunction`
 #[must_use]
-pub fn get_func_name<'c, 'f>(ctx: &mut Context<'c>, func: &mut Function<'f>) -> &'f str {
+pub fn get_func_name<'f>(ctx: &mut Context<'_>, func: &mut Function<'f>) -> &'f str {
     let func_name: *const ffi::c_char =
         unsafe { bindings::nvbit_get_func_name(ctx.as_mut_ptr(), func.as_mut_ptr(), false) };
     unsafe { ffi::CStr::from_ptr(func_name).to_str().unwrap_or_default() }
@@ -106,9 +102,9 @@ pub struct LineInfo {
 ///
 /// Note: binary must be compiled with --generate-line-info (-lineinfo)
 #[must_use]
-pub fn get_line_info<'c, 'f>(
-    ctx: &mut Context<'c>,
-    func: &mut Function<'f>,
+pub fn get_line_info(
+    ctx: &mut Context<'_>,
+    func: &mut Function<'_>,
     offset: u32,
 ) -> LineInfo {
     use ffi::CStr;
@@ -146,19 +142,19 @@ pub fn get_line_info<'c, 'f>(
 
 /// Get the SM family
 #[must_use]
-pub fn get_sm_family<'c>(ctx: &mut Context<'c>) -> u32 {
+pub fn get_sm_family(ctx: &mut Context<'_>) -> u32 {
     unsafe { bindings::nvbit_get_sm_family(ctx.as_mut_ptr()) }
 }
 
 /// Get PC address of the function
 #[must_use]
-pub fn get_func_addr<'f>(func: &mut Function<'f>) -> u64 {
+pub fn get_func_addr(func: &mut Function<'_>) -> u64 {
     unsafe { bindings::nvbit_get_func_addr(func.as_mut_ptr()) }
 }
 
 /// Returns true if function is a kernel (i.e. `__global__`)
 #[must_use]
-pub fn is_func_kernel<'c, 'f>(ctx: &mut Context<'c>, func: &mut Function<'f>) -> bool {
+pub fn is_func_kernel(ctx: &mut Context<'_>, func: &mut Function<'_>) -> bool {
     unsafe { bindings::nvbit_is_func_kernel(ctx.as_mut_ptr(), func.as_mut_ptr()) }
 }
 
@@ -171,7 +167,7 @@ pub fn is_func_kernel<'c, 'f>(ctx: &mut Context<'c>, func: &mut Function<'f>) ->
 /// Shmem range is [`shmem_base_addr`, `shmem_base_addr`+16MB) and
 /// the base address is 16MB aligned.
 #[must_use]
-pub fn get_shmem_base_addr<'c>(ctx: &mut Context<'c>) -> u64 {
+pub fn shmem_base_addr(ctx: &mut Context<'_>) -> u64 {
     unsafe { bindings::nvbit_get_shmem_base_addr(ctx.as_mut_ptr()) }
 }
 
@@ -180,7 +176,7 @@ pub fn get_shmem_base_addr<'c>(ctx: &mut Context<'c>) -> u64 {
 /// Local mem range is [`shmem_base_addr`, `shmem_base_addr`+16MB) and
 /// the base address is 16MB aligned.
 #[must_use]
-pub fn get_local_mem_base_addr<'c>(ctx: &mut Context<'c>) -> u64 {
+pub fn local_mem_base_addr(ctx: &mut Context<'_>) -> u64 {
     unsafe { bindings::nvbit_get_local_mem_base_addr(ctx.as_mut_ptr()) }
 }
 
@@ -188,9 +184,9 @@ pub fn get_local_mem_base_addr<'c>(ctx: &mut Context<'c>) -> u64 {
 ///
 /// Also enables instrumentation for its related functions
 /// if the `related` flag is set.
-pub fn enable_instrumented<'c, 'f>(
-    ctx: &mut Context<'c>,
-    func: &mut Function<'f>,
+pub fn enable_instrumented(
+    ctx: &mut Context<'_>,
+    func: &mut Function<'_>,
     enable: bool,
     related: bool,
 ) {
@@ -202,13 +198,16 @@ pub fn enable_instrumented<'c, 'f>(
 /// Set arguments at launch time,
 ///
 /// Will be loaded on input argument of the instrumentation function.
-pub fn set_at_launch<'c, 'f, T>(ctx: &mut Context<'c>, func: &mut Function<'f>, value: &mut T) {
+///
+/// # Panics
+/// If the size of T in bytes cannot be determined.
+pub fn set_at_launch<T>(ctx: &mut Context<'_>, func: &mut Function<'_>, value: &mut T) {
     let nbytes = std::mem::size_of::<T>();
     unsafe {
         bindings::nvbit_set_at_launch(
             ctx.as_mut_ptr(),
             func.as_mut_ptr(),
-            value as *mut T as *mut std::ffi::c_void,
+            (value as *mut T).cast(),
             nbytes.try_into().unwrap(),
         );
     };

@@ -179,6 +179,16 @@ impl<'a> Function<'a> {
     }
 
     #[inline]
+    pub fn enable_instrumented(
+        &mut self,
+        ctx: &mut Context<'_>,
+        flag: bool,
+        apply_to_related: bool,
+    ) {
+        super::enable_instrumented(ctx, self, flag, apply_to_related);
+    }
+
+    #[inline]
     #[must_use]
     pub fn related_functions<'c>(&mut self, ctx: &mut Context<'c>) -> Vec<Function<'a>> {
         super::get_related_functions(ctx, self)
@@ -263,24 +273,20 @@ impl<'a> Function<'a> {
 
     /// Gets an attribute for this function.
     ///
-    /// See: https://docs.nvidia.com/cuda/cuda-runtime-api/structcudaFuncAttributes.html#structcudaFuncAttributes
+    /// See: [CUDA Runtime API](https://docs.nvidia.com/cuda/cuda-runtime-api/structcudaFuncAttributes.html#structcudaFuncAttributes)
     ///
     /// # Errors
     /// Returns an error if the CUDA attribute can not be read.
     pub fn get_attribute<T>(&mut self, dest: &mut T, attr: FunctionAttribute) -> CudaResult<()> {
         let result = unsafe {
-            nvbit_sys::cuFuncGetAttribute(
-                dest as *mut T as *mut i32,
-                attr.into(),
-                self.as_mut_ptr(),
-            )
+            nvbit_sys::cuFuncGetAttribute((dest as *mut T).cast(), attr.into(), self.as_mut_ptr())
         };
         result.into_result()?;
         Ok(())
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct Dim {
     pub x: u32,
     pub y: u32,
@@ -294,7 +300,7 @@ impl std::fmt::Display for Dim {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub enum CudaEventParams<'a> {
+pub enum EventParams<'a> {
     KernelLaunch {
         func: Function<'a>,
         grid: Dim,
@@ -313,7 +319,7 @@ pub enum CudaEventParams<'a> {
     ProfilerStop,
 }
 
-impl<'a> CudaEventParams<'a> {
+impl<'a> EventParams<'a> {
     pub fn new(cbid: nvbit_sys::nvbit_api_cuda_t, params: *mut ffi::c_void) -> Option<Self> {
         use nvbit_sys::nvbit_api_cuda_t as cuda_t;
         match cbid {

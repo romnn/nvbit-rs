@@ -98,7 +98,7 @@ fn download_nvbit(version: impl AsRef<str>, arch: impl AsRef<str>) -> PathBuf {
     use std::fs::File;
 
     let nvbit_release_name = format!("nvbit-Linux-{}-{}", arch.as_ref(), version.as_ref());
-    let nvbit_release_archive_name = format!("{}.tar.bz2", nvbit_release_name);
+    let nvbit_release_archive_name = format!("{nvbit_release_name}.tar.bz2");
     let nvbit_release_archive_url = reqwest::Url::parse(&format!(
         "{}/{}/{}",
         NVBIT_RELEASES,
@@ -260,9 +260,7 @@ fn main() {
     let supported = vec!["x86_64", "aarch64", "ppc64le"];
     assert!(
         supported.contains(&target_arch.as_str()),
-        "unsupported target architecture {} (nvbit supports {:?})",
-        target_arch,
-        supported
+        "unsupported target architecture {target_arch} (nvbit supports {supported:?})"
     );
 
     // download nvbit
@@ -285,7 +283,7 @@ fn main() {
     build_utils_bridge([&nvbit_include_path]);
 
     let cuda_paths = find_cuda::find_cuda();
-    println!("cargo:warning=cuda paths: {:?}", cuda_paths);
+    // println!("cargo:warning=cuda paths: {cuda_paths:?}");
     for cuda_path in &cuda_paths {
         println!("cargo:rustc-link-search=native={}", cuda_path.display());
     }

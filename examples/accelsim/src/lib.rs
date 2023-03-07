@@ -1,5 +1,6 @@
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::missing_safety_doc)]
+#![allow(clippy::too_many_lines)]
 
 mod instrument_inst;
 
@@ -25,6 +26,20 @@ mod common {
 
 use common::inst_trace_t;
 
+fn traces_dir() -> PathBuf {
+    let example_dir = PathBuf::from(file!())
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    let traces_dir =
+        std::env::var("TRACES_DIR").map_or_else(|_| example_dir.join("traces"), PathBuf::from);
+    // make sure trace dir exists
+    std::fs::create_dir_all(&traces_dir).ok();
+    traces_dir
+}
+
 // 1 MiB = 2**20
 const CHANNEL_SIZE: usize = 1 << 20;
 
@@ -41,8 +56,8 @@ struct Instrumentor<'c> {
     recv_thread: Mutex<Option<std::thread::JoinHandle<()>>>,
     opcode_to_id_map: RwLock<HashMap<String, usize>>,
     id_to_opcode_map: RwLock<HashMap<usize, String>>,
-    instr_begin_interval: u32,
-    instr_end_interval: u32,
+    instr_begin_interval: usize,
+    instr_end_interval: usize,
     active_from_start: bool,
     active_region: Mutex<bool>,
     skip_flag: Mutex<bool>,
@@ -73,7 +88,7 @@ impl Instrumentor<'static> {
             opcode_to_id_map: RwLock::new(HashMap::new()),
             id_to_opcode_map: RwLock::new(HashMap::new()),
             instr_begin_interval: 0,
-            instr_end_interval: u32::MAX,
+            instr_end_interval: usize::MAX,
             active_from_start: true,
             active_region: Mutex::new(true),
             skip_flag: Mutex::new(false), // skip re-entry into intrumention logic
@@ -85,7 +100,7 @@ impl Instrumentor<'static> {
         // start receiving from the channel
         let instrumentor_clone = instrumentor.clone();
         *instrumentor.recv_thread.lock().unwrap() = Some(std::thread::spawn(move || {
-            instrumentor_clone.read_channel()
+            instrumentor_clone.read_channel();
         }));
 
         instrumentor
@@ -93,20 +108,8 @@ impl Instrumentor<'static> {
 
     fn read_channel(self: Arc<Self>) {
         let rx = self.host_channel.lock().unwrap().read();
-        let example_dir = PathBuf::from(file!())
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .to_path_buf();
-        let traces_dir = std::env::var("TRACES_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| example_dir.join("traces"));
 
-        // make sure trace dir exists
-        std::fs::create_dir_all(&traces_dir).unwrap();
-
-        let trace_file_path = traces_dir.join("kernelslist");
+        let trace_file_path = traces_dir().join("kernelslist");
         let mut file = std::io::BufWriter::new(
             std::fs::OpenOptions::new()
                 .write(true)
@@ -118,7 +121,7 @@ impl Instrumentor<'static> {
 
         let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
         let mut serializer = serde_json::Serializer::with_formatter(&mut file, formatter);
-        let mut encoder = nvbit_rs::Encoder::new(&mut serializer);
+        let mut encoder = nvbit_rs::Encoder::new(&mut serializer).unwrap();
 
         let mut packet_count = 0;
         while let Ok(packet) = rx.recv() {
@@ -154,8 +157,23 @@ lazy_static! {
     static ref CONTEXTS: Contexts = RwLock::new(HashMap::new());
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct KernelMetadata<'a> {
+    name: &'a str,
+    kernel_id: u64,
+    grid: nvbit_rs::Dim,
+    block: nvbit_rs::Dim,
+    shared_mem_bytes: usize,
+    nregs: i32,
+    binary_version: i32,
+    cuda_stream_id: u64,
+    shared_mem_base_addr: u64,
+    local_mem_base_addr: u64,
+    nvbit_version: &'a str,
+}
+
 impl<'c> Instrumentor<'c> {
-    fn instrument_instruction<'f>(&self, instr: &mut nvbit_rs::Instruction<'f>) {
+    fn instrument_instruction(&self, instr: &mut nvbit_rs::Instruction<'_>) {
         instr.print_decoded();
 
         let opcode = instr.opcode().expect("has opcode");
@@ -184,7 +202,7 @@ impl<'c> Instrumentor<'c> {
         // check all operands
         // For now, we ignore constant, TEX, predicates and unified registers.
         // We only report vector registers
-        let mut src_oprd: [ffi::c_int; common::MAX_SRC as usize] = [-1; common::MAX_SRC as usize];
+        let mut src_oprd: [ffi::c_int; common::MAX_SRC] = [-1; common::MAX_SRC];
         let mut src_num: usize = 0;
         let mut dst_oprd: ffi::c_int = -1;
         let mut mem_oper_idx: ffi::c_int = -1;
@@ -312,38 +330,25 @@ impl<'c> Instrumentor<'c> {
         inst_args.instrument(instr);
     }
 
-    fn instrument_function_if_needed<'f>(&self, func: &mut nvbit_rs::Function<'f>) {
-        let mut related_functions =
-            nvbit_rs::get_related_functions(&mut self.ctx.lock().unwrap(), func);
+    fn instrument_function_if_needed<'f: 'c>(&self, func: &mut nvbit_rs::Function<'f>) {
+        let mut related_functions = func.related_functions(&mut self.ctx.lock().unwrap());
 
         for f in related_functions.iter_mut().chain([func]) {
-            let mut f = nvbit_rs::Function::wrap(f.as_mut_ptr());
-
-            let func_name = nvbit_rs::get_func_name(&mut self.ctx.lock().unwrap(), &mut f);
-            let func_addr = nvbit_rs::get_func_addr(&mut f);
+            let func_name = f.name(&mut self.ctx.lock().unwrap());
+            let func_addr = f.addr();
 
             if !self.already_instrumented.lock().unwrap().insert(f.handle()) {
-                println!(
-                    "already instrumented function {} at address {:#X}",
-                    func_name, func_addr
-                );
+                println!("already instrumented function {func_name} at address {func_addr:#X}");
                 continue;
             }
 
-            println!(
-                "inspecting function {} at address {:#X}",
-                func_name, func_addr
-            );
+            println!("inspecting function {func_name} at address {func_addr:#X}");
 
-            let mut instrs = nvbit_rs::get_instrs(&mut self.ctx.lock().unwrap(), &mut f);
-
-            let mut instr_count: u32 = 0;
+            let mut instrs = f.instructions(&mut self.ctx.lock().unwrap());
 
             // iterate on all the static instructions in the function
-            for instr in &mut instrs {
-                instr_count += 1;
-                if instr_count < self.instr_begin_interval || instr_count >= self.instr_end_interval
-                {
+            for (cnt, instr) in instrs.iter_mut().enumerate() {
+                if cnt < self.instr_begin_interval || cnt >= self.instr_end_interval {
                     continue;
                 }
                 self.instrument_instruction(instr);
@@ -369,10 +374,7 @@ pub unsafe extern "C" fn nvbit_at_cuda_event(
     pstatus: *mut nvbit_sys::CUresult,
 ) {
     let is_exit = is_exit != 0;
-    println!(
-        "nvbit_at_cuda_event: {} (is_exit = {})",
-        event_name, is_exit
-    );
+    println!("nvbit_at_cuda_event: {event_name} (is_exit = {is_exit})");
     if let Some(instrumentor) = CONTEXTS.read().unwrap().get(&ctx.handle()) {
         instrumentor.at_cuda_event(is_exit, cbid, &event_name, params, pstatus);
     }
@@ -387,6 +389,7 @@ impl<'c> Instrumentor<'c> {
         params: *mut ffi::c_void,
         _pstatus: *mut nvbit_sys::CUresult,
     ) {
+        use nvbit_rs::EventParams;
         if *self.skip_flag.lock().unwrap() {
             return;
         }
@@ -411,14 +414,10 @@ impl<'c> Instrumentor<'c> {
         //         "total_insts, total_reported_insts\n");
         // fclose(statsFile);
 
-        match cbid {
-            nvbit_sys::nvbit_api_cuda_t::API_CUDA_cuMemcpyHtoD_v2 => {
+        let params = EventParams::new(cbid, params);
+        match params {
+            Some(EventParams::MemCopyHostToDevice { .. }) => {
                 if !is_exit {
-                    let p = unsafe { &mut *params.cast::<nvbit_sys::cuMemcpyHtoD_v2_params>() };
-                    // let p: &mut nvbit_sys::cuMemcpyHtoD_v2_params =
-                    //     unsafe { &mut *(params as *mut nvbit_sys::cuMemcpyHtoD_v2_params) };
-
-                    dbg!(&p);
                     // char buffer[1024];
                     // kernelsFile = fopen(kernelslist_location.c_str(), "a");
                     // sprintf(buffer, "MemcpyHtoD,0x%016lx,%lld", p->dstDevice, p->ByteCount);
@@ -427,12 +426,14 @@ impl<'c> Instrumentor<'c> {
                     // fclose(kernelsFile);
                 }
             }
-            nvbit_sys::nvbit_api_cuda_t::API_CUDA_cuLaunchKernel_ptsz
-            | nvbit_sys::nvbit_api_cuda_t::API_CUDA_cuLaunchKernel => {
-                let p = unsafe { &mut *params.cast::<nvbit_sys::cuLaunchKernel_params>() };
-                dbg!(&p);
-                let mut pf = nvbit_rs::Function::wrap(p.f);
-
+            Some(EventParams::KernelLaunch {
+                mut func,
+                grid,
+                block,
+                shared_mem_bytes,
+                h_stream,
+                ..
+            }) => {
                 if is_exit {
                     *self.skip_flag.lock().unwrap() = true;
                     unsafe {
@@ -470,75 +471,75 @@ impl<'c> Instrumentor<'c> {
                         std::process::exit(0);
                     }
 
-                    let _nregs = pf.num_registers().unwrap();
-                    let _shmem_static_nbytes = pf.shared_memory_bytes().unwrap();
-                    let _binary_version = pf.binary_version().unwrap();
+                    self.instrument_function_if_needed(&mut func);
 
-                    self.instrument_function_if_needed(&mut pf);
+                    let enable_instrumentation = *self.active_region.lock().unwrap();
+                    func.enable_instrumented(
+                        &mut self.ctx.lock().unwrap(),
+                        enable_instrumentation,
+                        true, // apply to related functions
+                    );
+                    **self.stop_report.lock().unwrap() = !enable_instrumentation;
 
-                    if *self.active_region.lock().unwrap() {
-                        nvbit_rs::enable_instrumented(
-                            &mut self.ctx.lock().unwrap(),
-                            &mut pf,
-                            true,
-                            true,
+                    if !**self.stop_report.lock().unwrap() {
+                        let kernel_id = *self.kernelid.lock().unwrap();
+                        let kernel_metadata_path =
+                            traces_dir().join(format!("kernel-{kernel_id}.trace"));
+                        let kernel_metadata_file = std::io::BufWriter::new(
+                            std::fs::OpenOptions::new()
+                                .write(true)
+                                .create(true)
+                                .truncate(true)
+                                .open(&kernel_metadata_path)
+                                .unwrap(),
                         );
-                        **self.stop_report.lock().unwrap() = false;
-                    } else {
-                        nvbit_rs::enable_instrumented(
-                            &mut self.ctx.lock().unwrap(),
-                            &mut pf,
-                            false,
-                            true,
+
+                        println!(
+                            "Writing kernel metadata to {}",
+                            kernel_metadata_path.display()
                         );
-                        **self.stop_report.lock().unwrap() = true;
+
+                        let metadata = {
+                            let mut ctx = self.ctx.lock().unwrap();
+                            let name = func.name(&mut ctx);
+                            let nregs = func.num_registers().unwrap();
+                            let shmem_static_nbytes = func.shared_memory_bytes().unwrap();
+                            let binary_version = func.binary_version().unwrap();
+                            let cuda_stream_id = h_stream.as_ptr() as u64;
+                            let shared_mem_base_addr = nvbit_rs::shmem_base_addr(&mut ctx);
+                            let local_mem_base_addr = nvbit_rs::local_mem_base_addr(&mut ctx);
+                            KernelMetadata {
+                                name,
+                                kernel_id,
+                                grid,
+                                block,
+                                shared_mem_bytes: shmem_static_nbytes + shared_mem_bytes as usize,
+                                nregs,
+                                binary_version,
+                                cuda_stream_id,
+                                shared_mem_base_addr,
+                                local_mem_base_addr,
+                                nvbit_version: nvbit_rs::version(),
+                            }
+                        };
+
+                        serde_json::to_writer(kernel_metadata_file, &metadata).unwrap();
+
+                        // fprintf(resultsFile,
+                        //         "#traces format = threadblock_x threadblock_y threadblock_z "
+                        //         "warpid_tb PC mask dest_num [reg_dests] opcode src_num "
+                        //         "[reg_srcs] mem_width [adrrescompress?] [mem_addresses]\n");
                     }
-
-                    // char buffer[1024];
-                    // sprintf(buffer, std::string(traces_location+"/kernel-%d.trace").c_str(), kernelid);
-
-                    // if (!stop_report) {
-                    //   resultsFile = fopen(buffer, "w");
-
-                    //   printf("Writing results to %s\n", buffer);
-
-                    //   fprintf(resultsFile, "-kernel name = %s\n",
-                    //           nvbit_get_func_name(ctx, p->f, true));
-                    //   fprintf(resultsFile, "-kernel id = %d\n", kernelid);
-                    //   fprintf(resultsFile, "-grid dim = (%d,%d,%d)\n", p->gridDimX,
-                    //           p->gridDimY, p->gridDimZ);
-                    //   fprintf(resultsFile, "-block dim = (%d,%d,%d)\n", p->blockDimX,
-                    //           p->blockDimY, p->blockDimZ);
-                    //   fprintf(resultsFile, "-shmem = %d\n",
-                    //           shmem_static_nbytes + p->sharedMemBytes);
-                    //   fprintf(resultsFile, "-nregs = %d\n", nregs);
-                    //   fprintf(resultsFile, "-binary version = %d\n", binary_version);
-                    //   fprintf(resultsFile, "-cuda stream id = %lu\n", (uint64_t)p->hStream);
-                    //   fprintf(resultsFile, "-shmem base_addr = 0x%016lx\n",
-                    //           (uint64_t)nvbit_get_shmem_base_addr(ctx));
-                    //   fprintf(resultsFile, "-local mem base_addr = 0x%016lx\n",
-                    //           (uint64_t)nvbit_get_local_mem_base_addr(ctx));
-                    //   fprintf(resultsFile, "-nvbit version = %s\n", NVBIT_VERSION);
-                    //   fprintf(resultsFile, "-accelsim tracer version = %s\n", TRACER_VERSION);
-                    //   fprintf(resultsFile, "\n");
-
-                    //   fprintf(resultsFile,
-                    //           "#traces format = threadblock_x threadblock_y threadblock_z "
-                    //           "warpid_tb PC mask dest_num [reg_dests] opcode src_num "
-                    //           "[reg_srcs] mem_width [adrrescompress?] [mem_addresses]\n");
-                    //   fprintf(resultsFile, "\n");
-                    // }
 
                     *self.kernelid.lock().unwrap() += 1;
                 }
             }
-            nvbit_sys::nvbit_api_cuda_t::API_CUDA_cuProfilerStart => {
-                // if is_exit && !*self.active_from_start.lock().unwrap() {
+            Some(EventParams::ProfilerStart) => {
                 if is_exit && !self.active_from_start {
                     *self.active_region.lock().unwrap() = true;
                 }
             }
-            nvbit_sys::nvbit_api_cuda_t::API_CUDA_cuProfilerStop => {
+            Some(EventParams::ProfilerStop) => {
                 if is_exit && !self.active_from_start {
                     *self.active_region.lock().unwrap() = false;
                 }

@@ -20,7 +20,7 @@ pub struct Args {
 }
 
 impl Args {
-    pub fn instrument<'a>(&self, instr: &mut nvbit_rs::Instruction<'a>) {
+    pub fn instrument(&self, instr: &mut nvbit_rs::Instruction<'_>) {
         instr.add_call_arg_guard_pred_val();
         instr.add_call_arg_const_val32(self.opcode_id.try_into().unwrap_or_default());
         instr.add_call_arg_const_val32(self.vpc);

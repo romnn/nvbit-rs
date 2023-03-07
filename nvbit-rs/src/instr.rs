@@ -17,6 +17,8 @@ impl<'a> Operand<'a> {
         unsafe { *self.ptr }
     }
 
+    #[inline]
+    #[must_use]
     pub fn kind(&self) -> OperandKind {
         let kind = unsafe { *self.ptr }.type_;
         kind.into()
@@ -267,10 +269,9 @@ impl<'a> Instruction<'a> {
 
     /// number of operands
     #[inline]
-    #[must_use]
     pub fn operands(&mut self) -> impl Iterator<Item = Operand<'a>> + '_ {
         let num_operands = self.num_operands();
-        (0..num_operands).map(|i| self.operand(i)).filter_map(|i| i)
+        (0..num_operands).filter_map(|i| self.operand(i))
     }
 
     /// number of operands

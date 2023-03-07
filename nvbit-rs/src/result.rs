@@ -77,7 +77,7 @@ impl fmt::Display for CudaError {
             .map_err(|_| fmt::Error)?;
             ffi::CStr::from_ptr(msg_ptr).to_str().unwrap()
         };
-        write!(f, "{}", msg)
+        write!(f, "{msg}")
     }
 }
 
