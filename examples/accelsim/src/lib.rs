@@ -1,4 +1,5 @@
 #![allow(clippy::missing_panics_doc)]
+#![allow(clippy::missing_safety_doc)]
 
 mod instrument_inst;
 
@@ -31,13 +32,15 @@ struct Instrumentor<'c> {
     ctx: Mutex<nvbit_rs::Context<'c>>,
     already_instrumented: Mutex<HashSet<nvbit_rs::FunctionHandle<'c>>>,
     dev_channel: Mutex<DeviceChannel<inst_trace_t>>,
-    host_channel: Arc<Mutex<HostChannel<inst_trace_t>>>,
-    ptotal_dynamic_instr_counter: Mutex<UnifiedBox<u64>>,
-    preported_dynamic_instr_counter: Mutex<UnifiedBox<u64>>,
-    pstop_report: Mutex<UnifiedBox<bool>>,
+    host_channel: Mutex<HostChannel<inst_trace_t>>,
+    total_dyn_instr_counter: Mutex<UnifiedBox<u64>>,
+    reported_dyn_instr_counter: Mutex<UnifiedBox<u64>>,
+    stop_report: Mutex<UnifiedBox<bool>>,
     kernelid: Mutex<u64>,
     terminate_after_limit_number_of_kernels_reached: bool,
     recv_thread: Mutex<Option<std::thread::JoinHandle<()>>>,
+    opcode_to_id_map: RwLock<HashMap<String, usize>>,
+    id_to_opcode_map: RwLock<HashMap<usize, String>>,
     instr_begin_interval: u32,
     instr_end_interval: u32,
     active_from_start: bool,
@@ -48,86 +51,104 @@ struct Instrumentor<'c> {
     start: Instant,
 }
 
-impl<'c> Instrumentor<'c> {
-    fn new(ctx: nvbit_rs::Context<'c>) -> Self {
+impl Instrumentor<'static> {
+    fn new(ctx: nvbit_rs::Context<'static>) -> Arc<Self> {
         let mut dev_channel = nvbit_rs::DeviceChannel::new();
-        let host_channel = Arc::new(Mutex::new(
-            HostChannel::<inst_trace_t>::new(42, CHANNEL_SIZE, &mut dev_channel).unwrap(),
-        ));
+        let host_channel = HostChannel::new(42, CHANNEL_SIZE, &mut dev_channel).unwrap();
+        let total_dyn_instr_counter = UnifiedBox::new(0u64).unwrap();
+        let reported_dyn_instr_counter = UnifiedBox::new(0u64).unwrap();
+        let stop_report = UnifiedBox::new(false).unwrap();
 
-        let rx = host_channel.lock().unwrap().read();
-        let traces_dir = PathBuf::from(
-            std::env::var("TRACES_DIR").expect("missing TRACES_DIR environment variable"),
-        );
+        let instrumentor = Arc::new(Self {
+            ctx: Mutex::new(ctx),
+            already_instrumented: Mutex::new(HashSet::default()),
+            dev_channel: Mutex::new(dev_channel),
+            host_channel: Mutex::new(host_channel),
+            total_dyn_instr_counter: Mutex::new(total_dyn_instr_counter),
+            reported_dyn_instr_counter: Mutex::new(reported_dyn_instr_counter),
+            stop_report: Mutex::new(stop_report),
+            kernelid: Mutex::new(1),
+            terminate_after_limit_number_of_kernels_reached: false,
+            recv_thread: Mutex::new(None),
+            opcode_to_id_map: RwLock::new(HashMap::new()),
+            id_to_opcode_map: RwLock::new(HashMap::new()),
+            instr_begin_interval: 0,
+            instr_end_interval: u32::MAX,
+            active_from_start: true,
+            active_region: Mutex::new(true),
+            skip_flag: Mutex::new(false), // skip re-entry into intrumention logic
+            dynamic_kernel_limit_start: 0, // start from the begging kernel
+            dynamic_kernel_limit_end: 0,  // no limit
+            start: Instant::now(),
+        });
+
+        // start receiving from the channel
+        let instrumentor_clone = instrumentor.clone();
+        *instrumentor.recv_thread.lock().unwrap() = Some(std::thread::spawn(move || {
+            instrumentor_clone.read_channel()
+        }));
+
+        instrumentor
+    }
+
+    fn read_channel(self: Arc<Self>) {
+        let rx = self.host_channel.lock().unwrap().read();
+        let example_dir = PathBuf::from(file!())
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        let traces_dir = std::env::var("TRACES_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| example_dir.join("traces"));
 
         // make sure trace dir exists
         std::fs::create_dir_all(&traces_dir).unwrap();
 
-        let host_channel_clone = host_channel.clone();
-        let recv_thread = Mutex::new(Some(std::thread::spawn(move || {
-            let mut file = std::io::BufWriter::new(
-                std::fs::OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .truncate(true)
-                    .open(traces_dir.join("kernelslist"))
-                    .unwrap(),
-            );
-            let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
-            let mut serializer = serde_json::Serializer::with_formatter(&mut file, formatter);
-            let mut encoder = nvbit_rs::Encoder::new(&mut serializer);
+        let trace_file_path = traces_dir.join("kernelslist");
+        let mut file = std::io::BufWriter::new(
+            std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(&trace_file_path)
+                .unwrap(),
+        );
 
-            let mut packet_count = 0;
-            while let Ok(packet) = rx.recv() {
-                // when cta_id_x == -1, the kernel has completed
-                if packet.cta_id_x == -1 {
-                    host_channel_clone
-                        .lock()
-                        .unwrap()
-                        .stop()
-                        .expect("stop host channel");
-                    break;
-                }
-                packet_count += 1;
-                // println!("{:?}", packet);
-                encoder.encode::<inst_trace_t>(packet).unwrap();
+        let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
+        let mut serializer = serde_json::Serializer::with_formatter(&mut file, formatter);
+        let mut encoder = nvbit_rs::Encoder::new(&mut serializer);
+
+        let mut packet_count = 0;
+        while let Ok(packet) = rx.recv() {
+            // when cta_id_x == -1, the kernel has completed
+            if packet.cta_id_x == -1 {
+                self.host_channel
+                    .lock()
+                    .unwrap()
+                    .stop()
+                    .expect("stop host channel");
+                break;
             }
-
-            encoder.finalize().unwrap();
-            println!("received {} packets", packet_count);
-        })));
-
-        let ptotal_dynamic_instr_counter = Mutex::new(UnifiedBox::new(0u64).unwrap());
-        let preported_dynamic_instr_counter = Mutex::new(UnifiedBox::new(0u64).unwrap());
-        let pstop_report = Mutex::new(UnifiedBox::new(false).unwrap());
-
-        Self {
-            ctx: Mutex::new(ctx),
-            already_instrumented: Mutex::new(HashSet::default()),
-            dev_channel: Mutex::new(dev_channel),
-            host_channel,
-            ptotal_dynamic_instr_counter,
-            preported_dynamic_instr_counter,
-            pstop_report,
-            kernelid: Mutex::new(1),
-            terminate_after_limit_number_of_kernels_reached: false,
-            recv_thread,
-            instr_begin_interval: 0,
-            instr_end_interval: u32::MAX,
-            active_from_start: true,
-            active_region: Mutex::new(true), // region of interest
-            skip_flag: Mutex::new(false),
-            dynamic_kernel_limit_start: 0, // start from the begging kernel
-            dynamic_kernel_limit_end: 0,   // // no limit
-            start: Instant::now(),
+            packet_count += 1;
+            // println!("{:?}", packet);
+            encoder.encode::<inst_trace_t>(packet).unwrap();
         }
+
+        encoder.finalize().unwrap();
+        println!(
+            "wrote {} packets to {}",
+            &packet_count,
+            &trace_file_path.display()
+        );
     }
 }
 
 unsafe impl<'c> Send for Instrumentor<'c> {}
 unsafe impl<'c> Sync for Instrumentor<'c> {}
 
-type Contexts = RwLock<HashMap<nvbit_rs::ContextHandle<'static>, Instrumentor<'static>>>;
+type Contexts = RwLock<HashMap<nvbit_rs::ContextHandle<'static>, Arc<Instrumentor<'static>>>>;
 
 lazy_static! {
     static ref CONTEXTS: Contexts = RwLock::new(HashMap::new());
@@ -135,20 +156,22 @@ lazy_static! {
 
 impl<'c> Instrumentor<'c> {
     fn instrument_instruction<'f>(&self, instr: &mut nvbit_rs::Instruction<'f>) {
-        // instr.print_decoded();
-
-        let mut opcode_to_id_map: HashMap<String, usize> = HashMap::new();
-        let mut id_to_opcode_map: HashMap<usize, String> = HashMap::new();
+        instr.print_decoded();
 
         let opcode = instr.opcode().expect("has opcode");
 
-        if !opcode_to_id_map.contains_key(opcode) {
-            let opcode_id = opcode_to_id_map.len();
-            opcode_to_id_map.insert(opcode.to_string(), opcode_id);
-            id_to_opcode_map.insert(opcode_id, opcode.to_string());
-        }
+        let opcode_id = {
+            let mut opcode_to_id_map = self.opcode_to_id_map.write().unwrap();
+            let mut id_to_opcode_map = self.id_to_opcode_map.write().unwrap();
 
-        let opcode_id = opcode_to_id_map[opcode];
+            if !opcode_to_id_map.contains_key(opcode) {
+                let opcode_id = opcode_to_id_map.len();
+                opcode_to_id_map.insert(opcode.to_string(), opcode_id);
+                id_to_opcode_map.insert(opcode_id, opcode.to_string());
+            }
+
+            opcode_to_id_map[opcode]
+        };
 
         instr.insert_call("instrument_inst", nvbit_rs::InsertionPoint::Before);
 
@@ -168,15 +191,15 @@ impl<'c> Instrumentor<'c> {
 
         // find dst reg and handle the special case if the oprd[0] is mem
         // (e.g. store and RED)
-        let num_operands = instr.num_operands();
-        if num_operands > 0 {
-            let first_operand = instr.operand(0).unwrap().into_owned();
-            match first_operand.type_ {
-                nvbit_sys::InstrType_OperandType::REG => {
-                    dst_oprd = unsafe { first_operand.u.reg.num };
+        if let Some(first_operand) = instr.operand(0) {
+            // todo
+            let first_operand2 = first_operand.into_owned();
+            match first_operand.kind() {
+                nvbit_rs::OperandKind::Register => {
+                    dst_oprd = unsafe { first_operand2.u.reg.num };
                 }
-                nvbit_sys::InstrType_OperandType::MREF => {
-                    src_oprd[0] = unsafe { first_operand.u.mref.ra_num };
+                nvbit_rs::OperandKind::MemRef => {
+                    src_oprd[0] = unsafe { first_operand2.u.mref.ra_num };
                     mem_oper_idx = 0;
                     src_num += 1;
                 }
@@ -187,15 +210,17 @@ impl<'c> Instrumentor<'c> {
         }
 
         // find src regs and mem
-        for i in 1..(common::MAX_SRC.min(num_operands.try_into().unwrap())) {
-            assert!(i < common::MAX_SRC);
-            assert!((i as usize) < num_operands);
-            let op = instr.operand(i as usize).unwrap().into_owned();
-            match op.type_ {
+        let num_operands = instr.num_operands();
+        let remaining_operands =
+            (1..common::MAX_SRC.min(num_operands)).filter_map(|i| instr.operand(i));
+        for operand in remaining_operands {
+            // todo
+            let operand = operand.into_owned();
+            match operand.type_ {
                 nvbit_sys::InstrType_OperandType::MREF => {
                     // mem is found
-                    assert!(src_num < common::MAX_SRC as usize);
-                    src_oprd[src_num] = unsafe { op.u.mref.ra_num };
+                    assert!(src_num < common::MAX_SRC);
+                    src_oprd[src_num] = unsafe { operand.u.mref.ra_num };
                     src_num += 1;
                     // TODO: handle LDGSTS with two mem refs
                     assert!(mem_oper_idx == -1); // ensure one memory operand per inst
@@ -203,8 +228,8 @@ impl<'c> Instrumentor<'c> {
                 }
                 nvbit_sys::InstrType_OperandType::REG => {
                     // reg is found
-                    assert!(src_num < common::MAX_SRC as usize);
-                    src_oprd[src_num] = unsafe { op.u.reg.num };
+                    assert!(src_num < common::MAX_SRC);
+                    src_oprd[src_num] = unsafe { operand.u.reg.num };
                     src_num += 1;
                 }
                 _ => {
@@ -212,6 +237,32 @@ impl<'c> Instrumentor<'c> {
                 }
             };
         }
+
+        // for i in 1..(common::MAX_SRC.min(num_operands.try_into().unwrap())) {
+        //     assert!(i < common::MAX_SRC);
+        //     assert!((i as usize) < num_operands);
+        //     let op = instr.operand(i as usize).unwrap().into_owned();
+        //     match op.type_ {
+        //         nvbit_sys::InstrType_OperandType::MREF => {
+        //             // mem is found
+        //             assert!(src_num < common::MAX_SRC);
+        //             src_oprd[src_num] = unsafe { op.u.mref.ra_num };
+        //             src_num += 1;
+        //             // TODO: handle LDGSTS with two mem refs
+        //             assert!(mem_oper_idx == -1); // ensure one memory operand per inst
+        //             mem_oper_idx += 1;
+        //         }
+        //         nvbit_sys::InstrType_OperandType::REG => {
+        //             // reg is found
+        //             assert!(src_num < common::MAX_SRC);
+        //             src_oprd[src_num] = unsafe { op.u.reg.num };
+        //             src_num += 1;
+        //         }
+        //         _ => {
+        //             // skip anything else (constant and predicates)
+        //         }
+        //     };
+        // }
 
         // mem addresses info
         if mem_oper_idx >= 0 {
@@ -238,21 +289,21 @@ impl<'c> Instrumentor<'c> {
         inst_args.pchannel_dev = self.dev_channel.lock().unwrap().as_mut_ptr() as u64;
 
         inst_args.ptotal_dynamic_instr_counter = self
-            .ptotal_dynamic_instr_counter
+            .total_dyn_instr_counter
             .lock()
             .unwrap()
             .as_unified_ptr()
             .as_raw_mut() as u64;
 
         inst_args.preported_dynamic_instr_counter = self
-            .preported_dynamic_instr_counter
+            .reported_dyn_instr_counter
             .lock()
             .unwrap()
             .as_unified_ptr()
             .as_raw_mut() as u64;
 
         inst_args.pstop_report = self
-            .pstop_report
+            .stop_report
             .lock()
             .unwrap()
             .as_unified_ptr()
@@ -309,23 +360,21 @@ pub extern "C" fn nvbit_at_init() {
 
 #[no_mangle]
 #[inline(never)]
-#[allow(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn nvbit_at_cuda_event(
     ctx: nvbit_rs::Context<'static>,
     is_exit: ffi::c_int,
     cbid: nvbit_sys::nvbit_api_cuda_t,
-    event_name: *const ffi::c_char,
+    event_name: nvbit_rs::CudaEventName,
     params: *mut ffi::c_void,
     pstatus: *mut nvbit_sys::CUresult,
 ) {
     let is_exit = is_exit != 0;
-    let event_name = unsafe { ffi::CStr::from_ptr(event_name).to_str().unwrap() };
     println!(
-        "nvbit_at_cuda_event: {:?} (is_exit = {})",
+        "nvbit_at_cuda_event: {} (is_exit = {})",
         event_name, is_exit
     );
     if let Some(instrumentor) = CONTEXTS.read().unwrap().get(&ctx.handle()) {
-        instrumentor.at_cuda_event(is_exit, cbid, event_name, params, pstatus);
+        instrumentor.at_cuda_event(is_exit, cbid, &event_name, params, pstatus);
     }
 }
 
@@ -434,7 +483,7 @@ impl<'c> Instrumentor<'c> {
                             true,
                             true,
                         );
-                        **self.pstop_report.lock().unwrap() = false;
+                        **self.stop_report.lock().unwrap() = false;
                     } else {
                         nvbit_rs::enable_instrumented(
                             &mut self.ctx.lock().unwrap(),
@@ -442,7 +491,7 @@ impl<'c> Instrumentor<'c> {
                             false,
                             true,
                         );
-                        **self.pstop_report.lock().unwrap() = true;
+                        **self.stop_report.lock().unwrap() = true;
                     }
 
                     // char buffer[1024];
@@ -541,14 +590,12 @@ pub extern "C" fn nvbit_at_ctx_term(ctx: nvbit_rs::Context<'static>) {
         "done after {:?}",
         Instant::now().duration_since(instrumentor.start)
     );
-    // this will lead to problems:
-    // CONTEXTS.write().unwrap().remove(&ctx.handle());
 }
 
 impl<'c> Instrumentor<'c> {
     fn at_ctx_term(&self) {
-        dbg!(**self.pstop_report.lock().unwrap());
-        dbg!(**self.ptotal_dynamic_instr_counter.lock().unwrap());
-        dbg!(**self.preported_dynamic_instr_counter.lock().unwrap());
+        dbg!(**self.stop_report.lock().unwrap());
+        dbg!(**self.total_dyn_instr_counter.lock().unwrap());
+        dbg!(**self.reported_dyn_instr_counter.lock().unwrap());
     }
 }

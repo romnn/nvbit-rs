@@ -4,6 +4,37 @@ use super::{Context, Function, Instruction, CFG};
 use nvbit_sys::{bindings, nvbit};
 use std::ffi;
 
+// #[must_use]
+// pub fn version() -> &'static str {
+//     std::str::from_utf8(bindings::NVBIT_VERSION).unwrap()
+// }
+
+#[repr(transparent)]
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub struct CudaEventName {
+    inner: *const ffi::c_char,
+}
+
+impl std::fmt::Display for CudaEventName {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.as_ref())
+    }
+}
+
+impl AsRef<str> for CudaEventName {
+    fn as_ref(&self) -> &str {
+        unsafe { ffi::CStr::from_ptr(self.inner).to_str().unwrap() }
+    }
+}
+
+impl std::ops::Deref for CudaEventName {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
+    }
+}
+
 /// Return nvbit version
 ///
 /// # Panics
@@ -171,11 +202,7 @@ pub fn enable_instrumented<'c, 'f>(
 /// Set arguments at launch time,
 ///
 /// Will be loaded on input argument of the instrumentation function.
-pub fn set_at_launch<'c, 'f, T>(
-    ctx: &mut Context<'c>,
-    func: &mut Function<'f>,
-    value: &mut T,
-) {
+pub fn set_at_launch<'c, 'f, T>(ctx: &mut Context<'c>, func: &mut Function<'f>, value: &mut T) {
     let nbytes = std::mem::size_of::<T>();
     unsafe {
         bindings::nvbit_set_at_launch(

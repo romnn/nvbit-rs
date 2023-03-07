@@ -4,57 +4,64 @@ NVBit core environment variables (mostly for nvbit-devs):
             NOBANNER = 0 - if set, does not print this banner
 ---------------------------------------------------------------------------------
 nvbit_at_init
-nvbit_at_init success
 nvbit_at_ctx_init
-nvbit_at_ctx_init success
-nvbit_at_cuda_event: "cuDevicePrimaryCtxRetain" (is_exit = true)
-nvbit_at_cuda_event: "cuCtxGetCurrent" (is_exit = false)
-nvbit_at_cuda_event: "cuCtxGetCurrent" (is_exit = true)
-nvbit_at_cuda_event: "cuCtxGetDevice" (is_exit = false)
-nvbit_at_cuda_event: "cuCtxGetDevice" (is_exit = true)
-nvbit_at_cuda_event: "cuModuleGetFunction" (is_exit = false)
-nvbit_at_cuda_event: "cuModuleGetFunction" (is_exit = true)
-nvbit_at_cuda_event: "cuMemAlloc_v2" (is_exit = false)
-nvbit_at_cuda_event: "cuMemAlloc_v2" (is_exit = true)
-nvbit_at_cuda_event: "cuMemAlloc_v2" (is_exit = false)
-nvbit_at_cuda_event: "cuMemAlloc_v2" (is_exit = true)
-nvbit_at_cuda_event: "cuMemAlloc_v2" (is_exit = false)
-nvbit_at_cuda_event: "cuMemAlloc_v2" (is_exit = true)
-nvbit_at_cuda_event: "cuMemcpyHtoD_v2" (is_exit = false)
-nvbit_at_cuda_event: "cuMemcpyHtoD_v2" (is_exit = true)
-nvbit_at_cuda_event: "cuMemcpyHtoD_v2" (is_exit = false)
-nvbit_at_cuda_event: "cuMemcpyHtoD_v2" (is_exit = true)
-nvbit_at_cuda_event: "cuMemcpyHtoD_v2" (is_exit = false)
-nvbit_at_cuda_event: "cuMemcpyHtoD_v2" (is_exit = true)
-nvbit_at_cuda_event: "cuLaunchKernel" (is_exit = false)
-nvbit_at_cuda_event: "cuCtxSynchronize" (is_exit = false)
-nvbit_at_cuda_event: "cuCtxSynchronize" (is_exit = true)
+nvbit_at_cuda_event: cuDevicePrimaryCtxRetain (is_exit = true)
+nvbit_at_cuda_event: cuCtxGetCurrent (is_exit = false)
+nvbit_at_cuda_event: cuCtxGetCurrent (is_exit = true)
+nvbit_at_cuda_event: cuCtxGetDevice (is_exit = false)
+nvbit_at_cuda_event: cuCtxGetDevice (is_exit = true)
+nvbit_at_cuda_event: cuModuleGetFunction (is_exit = false)
+nvbit_at_cuda_event: cuModuleGetFunction (is_exit = true)
+nvbit_at_cuda_event: cuMemAlloc_v2 (is_exit = false)
+nvbit_at_cuda_event: cuMemAlloc_v2 (is_exit = true)
+nvbit_at_cuda_event: cuMemAlloc_v2 (is_exit = false)
+nvbit_at_cuda_event: cuMemAlloc_v2 (is_exit = true)
+nvbit_at_cuda_event: cuMemAlloc_v2 (is_exit = false)
+nvbit_at_cuda_event: cuMemAlloc_v2 (is_exit = true)
+nvbit_at_cuda_event: cuMemcpyHtoD_v2 (is_exit = false)
+nvbit_at_cuda_event: cuMemcpyHtoD_v2 (is_exit = true)
+nvbit_at_cuda_event: cuMemcpyHtoD_v2 (is_exit = false)
+nvbit_at_cuda_event: cuMemcpyHtoD_v2 (is_exit = true)
+nvbit_at_cuda_event: cuMemcpyHtoD_v2 (is_exit = false)
+nvbit_at_cuda_event: cuMemcpyHtoD_v2 (is_exit = true)
+nvbit_at_cuda_event: cuLaunchKernel (is_exit = false)
+nvbit_at_cuda_event: cuCtxSynchronize (is_exit = false)
+nvbit_at_cuda_event: cuCtxSynchronize (is_exit = true)
 inspecting function vecAdd(double*, double*, double*, int) at address 0x2BE8C0
-nvbit_at_cuda_event: "cuFuncGetAttribute" (is_exit = false)
-nvbit_at_cuda_event: "cuFuncGetAttribute" (is_exit = true)
-nvbit_at_cuda_event: "cuFuncGetAttribute" (is_exit = false)
-nvbit_at_cuda_event: "cuFuncGetAttribute" (is_exit = true)
-nvbit_at_cuda_event: "cuLaunchKernel" (is_exit = true)
-nvbit_at_cuda_event: "cuCtxSynchronize" (is_exit = false)
-nvbit_at_cuda_event: "cuCtxSynchronize" (is_exit = true)
-nvbit_at_cuda_event: "cuMemcpyDtoH_v2" (is_exit = false)
-nvbit_at_cuda_event: "cuMemcpyDtoH_v2" (is_exit = true)
-nvbit_at_cuda_event: "cuMemFree_v2" (is_exit = false)
-nvbit_at_cuda_event: "cuMemFree_v2" (is_exit = true)
-nvbit_at_cuda_event: "cuMemFree_v2" (is_exit = false)
-nvbit_at_cuda_event: "cuMemFree_v2" (is_exit = true)
-nvbit_at_cuda_event: "cuMemFree_v2" (is_exit = false)
-nvbit_at_cuda_event: "cuMemFree_v2" (is_exit = true)
+nvbit_at_cuda_event: cuFuncGetAttribute (is_exit = false)
+nvbit_at_cuda_event: cuFuncGetAttribute (is_exit = true)
+nvbit_at_cuda_event: cuFuncGetAttribute (is_exit = false)
+nvbit_at_cuda_event: cuFuncGetAttribute (is_exit = true)
+MEMTRACE: CTX 0x556a8483f1c0 - LAUNCH
+	Kernel pc: 0x2be8c0
+	Kernel name: vecAdd(double*, double*, double*, int)
+	Grid launch id: 0
+	Grid size: (1,1,1)
+	Block size: (1024,1,1)
+	Num registers: 10
+	Shared memory bytes: 0
+	CUDA stream id: 0
+nvbit_at_cuda_event: cuLaunchKernel (is_exit = true)
+nvbit_at_cuda_event: cuCtxSynchronize (is_exit = false)
+nvbit_at_cuda_event: cuCtxSynchronize (is_exit = true)
+nvbit_at_cuda_event: cuMemcpyDtoH_v2 (is_exit = false)
+nvbit_at_cuda_event: cuMemcpyDtoH_v2 (is_exit = true)
+nvbit_at_cuda_event: cuMemFree_v2 (is_exit = false)
+nvbit_at_cuda_event: cuMemFree_v2 (is_exit = true)
+nvbit_at_cuda_event: cuMemFree_v2 (is_exit = false)
+nvbit_at_cuda_event: cuMemFree_v2 (is_exit = true)
+nvbit_at_cuda_event: cuMemFree_v2 (is_exit = false)
+nvbit_at_cuda_event: cuMemFree_v2 (is_exit = true)
 nvbit_at_ctx_term
-nvbit_at_cuda_event: "cuLaunchKernel" (is_exit = false)
-nvbit_at_cuda_event: "cuLaunchKernel" (is_exit = true)
-nvbit_at_cuda_event: "cuCtxSynchronize" (is_exit = false)
-nvbit_at_cuda_event: "cuCtxSetCurrent" (is_exit = true)
-nvbit_at_cuda_event: "cuCtxGetApiVersion" (is_exit = false)
-nvbit_at_cuda_event: "cuCtxGetApiVersion" (is_exit = true)
-nvbit_at_cuda_event: "cuMemcpyDtoHAsync_v2" (is_exit = false)
-nvbit_at_cuda_event: "cuMemcpyDtoHAsync_v2" (is_exit = true)
-nvbit_at_cuda_event: "cuStreamSynchronize" (is_exit = false)
+nvbit_at_cuda_event: cuLaunchKernel (is_exit = false)
+nvbit_at_cuda_event: cuLaunchKernel (is_exit = true)
+nvbit_at_cuda_event: cuCtxSynchronize (is_exit = false)
+nvbit_at_cuda_event: cuCtxSetCurrent (is_exit = true)
+nvbit_at_cuda_event: cuCtxGetApiVersion (is_exit = false)
+nvbit_at_cuda_event: cuCtxGetApiVersion (is_exit = true)
+nvbit_at_cuda_event: cuMemcpyDtoHAsync_v2 (is_exit = false)
+nvbit_at_cuda_event: cuMemcpyDtoHAsync_v2 (is_exit = true)
+nvbit_at_cuda_event: cuStreamSynchronize (is_exit = false)
 Instr 14 @ 0x98 (152) - LDG.E.64 R4, [R4]         }
   has_guard_pred = 0
   opcode = LDG.E.64/LDG
@@ -128,11 +135,11 @@ Instr 20 @ 0xd8 (216) - STG.E.64 [R8], R2 ;
   num = 2
   prop = 
 Final sum = 100.000000; sum/n = 1.000000 (should be ~1)
-nvbit_at_cuda_event: "cuStreamSynchronize" (is_exit = true)
-nvbit_at_cuda_event: "cuCtxSynchronize" (is_exit = true)
-nvbit_at_cuda_event: "cuCtxSynchronize" (is_exit = false)
-nvbit_at_cuda_event: "cuCtxSynchronize" (is_exit = true)
+nvbit_at_cuda_event: cuStreamSynchronize (is_exit = true)
+nvbit_at_cuda_event: cuCtxSynchronize (is_exit = true)
+nvbit_at_cuda_event: cuCtxSynchronize (is_exit = false)
+nvbit_at_cuda_event: cuCtxSynchronize (is_exit = true)
 stopping receiver thread
 stopping receiver thread
 wrote 12 packets to examples/dynamic/traces/kernelslist
-done after 136.773168ms
+done after 123.342486ms

@@ -1,6 +1,6 @@
 use super::{CudaResult, IntoCudaResult};
 use std::ffi;
-use std::{marker::PhantomData, ptr};
+use std::marker::PhantomData;
 
 /// Opaque handle to a CUDA `CUdeviceptr_v1` device.
 #[repr(transparent)]
@@ -109,6 +109,18 @@ impl<'a> Stream<'a> {
             ctx: PhantomData,
         }
     }
+
+    #[inline]
+    #[must_use]
+    pub fn as_ptr(&self) -> *const nvbit_sys::CUstream_st {
+        self.inner.cast()
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn as_mut_ptr(&mut self) -> *mut nvbit_sys::CUstream_st {
+        self.inner.cast()
+    }
 }
 
 #[repr(transparent)]
@@ -165,6 +177,18 @@ impl<'a> Function<'a> {
     pub fn addr(&mut self) -> u64 {
         super::get_func_addr(self)
     }
+
+    #[inline]
+    #[must_use]
+    pub fn related_functions<'c>(&mut self, ctx: &mut Context<'c>) -> Vec<Function<'a>> {
+        super::get_related_functions(ctx, self)
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn instructions<'c>(&mut self, ctx: &mut Context<'c>) -> Vec<super::Instruction<'a>> {
+        super::get_instrs(ctx, self)
+    }
 }
 
 /// CUDA function attribute.
@@ -212,15 +236,19 @@ impl<'a> Function<'a> {
     /// # Errors
     /// Returns an error if the CUDA attribute can not be read.
     pub fn num_registers(&mut self) -> CudaResult<i32> {
-        self.get_attribute(FunctionAttribute::NumRegs)
+        let mut value = 0;
+        self.get_attribute(&mut value, FunctionAttribute::NumRegs)?;
+        Ok(value)
     }
 
     /// Returns the number of shared memory bytes for this function.
     ///
     /// # Errors
     /// Returns an error if the CUDA attribute can not be read.
-    pub fn shared_memory_bytes(&mut self) -> CudaResult<i32> {
-        self.get_attribute(FunctionAttribute::SharedSizeBytes)
+    pub fn shared_memory_bytes(&mut self) -> CudaResult<usize> {
+        let mut value = 0;
+        self.get_attribute(&mut value, FunctionAttribute::SharedSizeBytes)?;
+        Ok(value)
     }
 
     /// Returns the binary version of this function.
@@ -228,20 +256,27 @@ impl<'a> Function<'a> {
     /// # Errors
     /// Returns an error if the CUDA attribute can not be read.
     pub fn binary_version(&mut self) -> CudaResult<i32> {
-        self.get_attribute(FunctionAttribute::BinaryVersion)
+        let mut value = 0;
+        self.get_attribute(&mut value, FunctionAttribute::BinaryVersion)?;
+        Ok(value)
     }
 
     /// Gets an attribute for this function.
     ///
+    /// See: https://docs.nvidia.com/cuda/cuda-runtime-api/structcudaFuncAttributes.html#structcudaFuncAttributes
+    ///
     /// # Errors
     /// Returns an error if the CUDA attribute can not be read.
-    pub fn get_attribute(&mut self, attr: FunctionAttribute) -> CudaResult<i32> {
-        let mut val = 0i32;
+    pub fn get_attribute<T>(&mut self, dest: &mut T, attr: FunctionAttribute) -> CudaResult<()> {
         let result = unsafe {
-            nvbit_sys::cuFuncGetAttribute(ptr::addr_of_mut!(val), attr.into(), self.as_mut_ptr())
+            nvbit_sys::cuFuncGetAttribute(
+                dest as *mut T as *mut i32,
+                attr.into(),
+                self.as_mut_ptr(),
+            )
         };
         result.into_result()?;
-        Ok(val)
+        Ok(())
     }
 }
 
@@ -250,6 +285,12 @@ pub struct Dim {
     pub x: u32,
     pub y: u32,
     pub z: u32,
+}
+
+impl std::fmt::Display for Dim {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "({},{},{})", self.x, self.y, self.z)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
