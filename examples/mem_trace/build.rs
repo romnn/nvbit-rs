@@ -123,11 +123,21 @@ fn main() {
     println!("nvcc result: {}", String::from_utf8_lossy(&result.stderr));
     assert!(result.status.success());
 
-    let lib = output_path().join("libinstrumentation.a");
+    // the static lib name must be unique per example to avoid name conflicts
+    let static_lib = format!(
+        "{}instrumentation",
+        manifest_path()
+            .file_name()
+            .and_then(std::ffi::OsStr::to_str)
+            .unwrap()
+    );
+
     std::process::Command::new("ar")
         .args([
             "cru",
-            &lib.to_string_lossy(),
+            &output_path()
+                .join(format!("lib{static_lib}.a"))
+                .to_string_lossy(),
             &tool_obj.to_string_lossy(),
             &instrument_inst_obj.to_string_lossy(),
             &dev_obj_link.to_string_lossy(),
@@ -141,40 +151,5 @@ fn main() {
     assert!(result.status.success());
 
     println!("cargo:rustc-link-search=native={}", output_path().display());
-    println!("cargo:rustc-link-lib=static:+whole-archive=instrumentation");
-
-    
-    // let cuobjdump_bin_path: PathBuf = std::env::var("CUDA_INSTALL_PATH")
-    //     .ok()
-    //     .map(|cuda_install| [&cuda_install, "bin", "cuobjdump"].iter().collect())
-    //     .and_then(|bin: PathBuf| if bin.exists() { Some(bin) } else { None })
-    //     .unwrap_or(PathBuf::from("cuobjdump"));
-    // let cuobjdump_ptx_files = Command::new(&cuobjdump_bin_path)
-    //     .arg("-lptx")
-    //     .arg(&inject_obj)
-    //     .output()
-    //     .unwrap();
-    // let cuobjdump_ptx_files = String::from_utf8(cuobjdump_ptx_files.stdout).unwrap();
-
-    // lazy_static::lazy_static! {
-    //     static ref PTX_FILE_REG: Regex = Regex::new(r"PTX file\s*\d*:\s*(?P<ptx_file>\S*)\s*").unwrap();
-    // }
-
-    // let ptx_files: Vec<&str> = PTX_FILE_REG
-    //     .captures_iter(&cuobjdump_ptx_files)
-    //     .filter_map(|cap| cap.name("ptx_file"))
-    //     .map(|cap| cap.as_str())
-    //     .collect();
-
-    // // println!("cargo:warning={:?}", &ptx_files);
-
-    // for ptx_file in ptx_files {
-    //     Command::new(&cuobjdump_bin_path)
-    //         .current_dir(output_path())
-    //         .arg("-xptx")
-    //         .arg(&ptx_file)
-    //         .arg(&inject_obj)
-    //         .output()
-    //         .unwrap();
-    // }
+    println!("cargo:rustc-link-lib=static:+whole-archive={static_lib}");
 }

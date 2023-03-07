@@ -5,7 +5,7 @@ edition = "2021"
 publish = false
 
 [lib]
-crate-type = ["staticlib"]
+crate-type = ["dylib"]
 
 [dependencies]
 nvbit-rs = { path = "../../nvbit-rs" }

@@ -1,0 +1,1 @@
+{"name":"vecAdd(double*, double*, double*, int)","kernel_id":1,"grid":{"x":1,"y":1,"z":1},"block":{"x":1024,"y":1,"z":1},"shared_mem_bytes":0,"nregs":10,"binary_version":61,"cuda_stream_id":0,"shared_mem_base_addr":140382667014144,"local_mem_base_addr":140382633459712,"nvbit_version":"1.5.5\u0000"}
