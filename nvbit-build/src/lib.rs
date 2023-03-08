@@ -25,14 +25,6 @@ pub fn manifest_path() -> PathBuf {
         .expect("canonicalize path")
 }
 
-#[derive(Debug, Clone)]
-pub struct Build {
-    include_directories: Vec<PathBuf>,
-    objects: Vec<PathBuf>,
-    sources: Vec<PathBuf>,
-    instrumentation_sources: Vec<PathBuf>,
-}
-
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error(transparent)]
@@ -41,8 +33,23 @@ pub enum Error {
     Command(Output),
 }
 
+#[derive(Debug, Clone)]
+pub struct Build {
+    include_directories: Vec<PathBuf>,
+    objects: Vec<PathBuf>,
+    sources: Vec<PathBuf>,
+    instrumentation_sources: Vec<PathBuf>,
+}
+
+impl Default for Build {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Build {
     #[inline]
+    #[must_use]
     pub fn new() -> Self {
         Self {
             include_directories: Vec::new(),
@@ -52,6 +59,10 @@ impl Build {
         }
     }
 
+    /// Compile and link static library with given name from inputs.
+    ///
+    /// # Errors
+    /// When compilation fails, an error is returned.
     pub fn compile<O: AsRef<str>>(&self, output: O) -> Result<(), Error> {
         use std::ffi::OsStr;
 
@@ -63,13 +74,14 @@ impl Build {
             .collect();
 
         // compile instrumentation functions
-        for instrumentation_src in &self.instrumentation_sources {
+        for (i, instrumentation_src) in self.instrumentation_sources.iter().enumerate() {
+            let default_name = format!("instr_src_{i}");
             let obj = output_path()
                 .join(
                     instrumentation_src
                         .file_name()
                         .and_then(OsStr::to_str)
-                        .unwrap(),
+                        .unwrap_or(&default_name),
                 )
                 .with_extension("o");
             let result = Command::new("nvcc")
@@ -94,9 +106,14 @@ impl Build {
         }
 
         // compile sources
-        for src in &self.sources {
+        for (i, src) in self.sources.iter().enumerate() {
+            let default_name = format!("src_{i}");
             let obj = output_path()
-                .join(src.file_name().and_then(OsStr::to_str).unwrap())
+                .join(
+                    src.file_name()
+                        .and_then(OsStr::to_str)
+                        .unwrap_or(&default_name),
+                )
                 .with_extension("o");
             let result = Command::new("nvcc")
                 .args(&include_args)

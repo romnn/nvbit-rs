@@ -25,7 +25,7 @@ keywords = [
 exclude = []
 
 [lib]
-crate-type = ["rlib", "cdylib", "staticlib"]
+crate-type = ["rlib"]
 
 [dependencies]
 thiserror = "1"
