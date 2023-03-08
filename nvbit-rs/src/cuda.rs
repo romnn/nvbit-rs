@@ -301,6 +301,9 @@ impl std::fmt::Display for Dim {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum EventParams<'a> {
+    Launch {
+        func: Function<'a>,
+    },
     KernelLaunch {
         func: Function<'a>,
         grid: Dim,
@@ -333,6 +336,14 @@ impl<'a> EventParams<'a> {
             }
             cuda_t::API_CUDA_cuProfilerStart => Some(Self::ProfilerStart),
             cuda_t::API_CUDA_cuProfilerStop => Some(Self::ProfilerStop),
+            cuda_t::API_CUDA_cuLaunch
+            | cuda_t::API_CUDA_cuLaunchGrid
+            | cuda_t::API_CUDA_cuLaunchGridAsync => {
+                let p = unsafe { &mut *params.cast::<nvbit_sys::cuLaunch_params>() };
+                Some(Self::Launch {
+                    func: Function::wrap(p.f),
+                })
+            }
             cuda_t::API_CUDA_cuLaunchKernel_ptsz | cuda_t::API_CUDA_cuLaunchKernel => {
                 let p = unsafe { &mut *params.cast::<nvbit_sys::cuLaunchKernel_params>() };
                 Some(Self::KernelLaunch {

@@ -74,18 +74,17 @@ impl Build {
             .collect();
 
         // compile instrumentation functions
-        for (i, instrumentation_src) in self.instrumentation_sources.iter().enumerate() {
+        for (i, src) in self.instrumentation_sources.iter().enumerate() {
             let default_name = format!("instr_src_{i}");
             let obj = output_path()
                 .join(
-                    instrumentation_src
-                        .file_name()
+                    src.file_name()
                         .and_then(OsStr::to_str)
                         .unwrap_or(&default_name),
                 )
                 .with_extension("o");
-            let result = Command::new("nvcc")
-                .args(&include_args)
+            let mut cmd = Command::new("nvcc");
+            cmd.args(&include_args)
                 .args([
                     "-maxrregcount=24",
                     "-Xptxas",
@@ -95,10 +94,12 @@ impl Build {
                     "-fPIC",
                     "-c",
                 ])
-                .arg(instrumentation_src)
+                .arg(src)
                 .arg("-o")
-                .arg(&*obj.to_string_lossy())
-                .output()?;
+                .arg(&*obj.to_string_lossy());
+
+            println!("cargo:warning={cmd:?}");
+            let result = cmd.output()?;
             if !result.status.success() {
                 return Err(Error::Command(result));
             }
@@ -115,13 +116,14 @@ impl Build {
                         .unwrap_or(&default_name),
                 )
                 .with_extension("o");
-            let result = Command::new("nvcc")
-                .args(&include_args)
+            let mut cmd = Command::new("nvcc");
+            cmd.args(&include_args)
                 .args(["-Xcompiler", "-fPIC", "-dc", "-c"])
                 .arg(src)
                 .arg("-o")
-                .arg(&*obj.to_string_lossy())
-                .output()?;
+                .arg(&*obj.to_string_lossy());
+            println!("cargo:warning={cmd:?}");
+            let result = cmd.output()?;
             if !result.status.success() {
                 return Err(Error::Command(result));
             }
@@ -130,28 +132,30 @@ impl Build {
 
         // link device functions
         let dev_link_obj = output_path().join("dev_link.o");
-        let result = Command::new("nvcc")
-            .args(&include_args)
+        let mut cmd = Command::new("nvcc");
+        cmd.args(&include_args)
             .args(["-Xcompiler", "-fPIC", "-dlink"])
             .args(&objects)
             .arg("-o")
-            .arg(&*dev_link_obj.to_string_lossy())
-            .output()?;
+            .arg(&*dev_link_obj.to_string_lossy());
+        println!("cargo:warning={cmd:?}");
+        let result = cmd.output()?;
         if !result.status.success() {
             return Err(Error::Command(result));
         }
         objects.push(dev_link_obj);
 
         // link everything together
-        let result = Command::new("ar")
-            .args([
-                "cru",
-                &output_path()
-                    .join(format!("lib{}.a", output.as_ref()))
-                    .to_string_lossy(),
-            ])
-            .args(&objects)
-            .output()?;
+        let mut cmd = Command::new("ar");
+        cmd.args([
+            "cru",
+            &output_path()
+                .join(format!("lib{}.a", output.as_ref()))
+                .to_string_lossy(),
+        ])
+        .args(&objects);
+        println!("cargo:warning={cmd:?}");
+        let result = cmd.output()?;
         if !result.status.success() {
             return Err(Error::Command(result));
         }
