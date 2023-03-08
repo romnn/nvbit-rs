@@ -210,14 +210,12 @@ impl<'c> Instrumentor<'c> {
         // find dst reg and handle the special case if the oprd[0] is mem
         // (e.g. store and RED)
         if let Some(first_operand) = instr.operand(0) {
-            // todo
-            let first_operand2 = first_operand.into_owned();
             match first_operand.kind() {
-                nvbit_rs::OperandKind::Register => {
-                    dst_oprd = unsafe { first_operand2.u.reg.num };
+                nvbit_rs::OperandKind::Register { num, .. } => {
+                    dst_oprd = num;
                 }
-                nvbit_rs::OperandKind::MemRef => {
-                    src_oprd[0] = unsafe { first_operand2.u.mref.ra_num };
+                nvbit_rs::OperandKind::MemRef { ra_num, .. } => {
+                    src_oprd[0] = ra_num;
                     mem_oper_idx = 0;
                     src_num += 1;
                 }
@@ -232,22 +230,20 @@ impl<'c> Instrumentor<'c> {
         let remaining_operands =
             (1..common::MAX_SRC.min(num_operands)).filter_map(|i| instr.operand(i));
         for operand in remaining_operands {
-            // todo
-            let operand = operand.into_owned();
-            match operand.type_ {
-                nvbit_sys::InstrType_OperandType::MREF => {
+            match operand.kind() {
+                nvbit_rs::OperandKind::MemRef { ra_num, .. } => {
                     // mem is found
                     assert!(src_num < common::MAX_SRC);
-                    src_oprd[src_num] = unsafe { operand.u.mref.ra_num };
+                    src_oprd[src_num] = ra_num;
                     src_num += 1;
                     // TODO: handle LDGSTS with two mem refs
                     assert!(mem_oper_idx == -1); // ensure one memory operand per inst
                     mem_oper_idx += 1;
                 }
-                nvbit_sys::InstrType_OperandType::REG => {
+                nvbit_rs::OperandKind::Register { num, .. } => {
                     // reg is found
                     assert!(src_num < common::MAX_SRC);
-                    src_oprd[src_num] = unsafe { operand.u.reg.num };
+                    src_oprd[src_num] = num;
                     src_num += 1;
                 }
                 _ => {
@@ -255,32 +251,6 @@ impl<'c> Instrumentor<'c> {
                 }
             };
         }
-
-        // for i in 1..(common::MAX_SRC.min(num_operands.try_into().unwrap())) {
-        //     assert!(i < common::MAX_SRC);
-        //     assert!((i as usize) < num_operands);
-        //     let op = instr.operand(i as usize).unwrap().into_owned();
-        //     match op.type_ {
-        //         nvbit_sys::InstrType_OperandType::MREF => {
-        //             // mem is found
-        //             assert!(src_num < common::MAX_SRC);
-        //             src_oprd[src_num] = unsafe { op.u.mref.ra_num };
-        //             src_num += 1;
-        //             // TODO: handle LDGSTS with two mem refs
-        //             assert!(mem_oper_idx == -1); // ensure one memory operand per inst
-        //             mem_oper_idx += 1;
-        //         }
-        //         nvbit_sys::InstrType_OperandType::REG => {
-        //             // reg is found
-        //             assert!(src_num < common::MAX_SRC);
-        //             src_oprd[src_num] = unsafe { op.u.reg.num };
-        //             src_num += 1;
-        //         }
-        //         _ => {
-        //             // skip anything else (constant and predicates)
-        //         }
-        //     };
-        // }
 
         // mem addresses info
         if mem_oper_idx >= 0 {

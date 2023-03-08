@@ -266,7 +266,8 @@ impl<'c> Instrumentor<'c> {
 
         // iterate on the operands
         for operand in instr.operands().collect::<Vec<_>>() {
-            if operand.kind() == nvbit_rs::OperandKind::MemRef {
+            println!("operand {}", operand.name());
+            if let nvbit_rs::OperandKind::MemRef { .. } = operand.kind() {
                 instr.insert_call("instrument_inst", nvbit_rs::InsertionPoint::Before);
                 let mut pchannel_dev_lock = self.dev_channel.lock().unwrap();
                 let inst_args = Args {

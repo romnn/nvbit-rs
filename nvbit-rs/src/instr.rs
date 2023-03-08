@@ -2,11 +2,53 @@ use nvbit_sys::{bindings, nvbit};
 use std::marker::PhantomData;
 use std::{ffi, fmt, pin::Pin};
 
+type RegisterModifier = nvbit_sys::InstrType_RegModifierType;
+
+/// An instruction operand.
+#[derive(PartialEq, Debug, Clone)]
+pub enum OperandKind {
+    ImmutableUint64 {
+        value: u64,
+    },
+    ImmutableDouble {
+        value: f64,
+    },
+    Register {
+        num: i32,
+        prop: String,
+    },
+    Predicate {
+        num: i32,
+    },
+    // URegister {},
+    // UPredicate {},
+    CBank {
+        id: i32,
+        has_imm_offset: bool,
+        imm_offset: i32,
+        has_reg_offset: bool,
+        reg_offset: i32,
+    },
+    MemRef {
+        has_ra: bool,
+        ra_num: i32,
+        ra_mod: RegisterModifier,
+        has_ur: bool,
+        ur_num: i32,
+        ur_mod: RegisterModifier,
+        has_imm: bool,
+        imm: i32,
+    },
+    Generic {
+        array: String,
+    },
+}
+
 /// An instruction operand.
 #[repr(transparent)]
 #[derive(Debug)]
 pub struct Operand<'a> {
-    ptr: *const nvbit::operand_t,
+    inner: *const nvbit::operand_t,
     instr: PhantomData<Instruction<'a>>,
 }
 
@@ -14,49 +56,92 @@ impl<'a> Operand<'a> {
     #[inline]
     #[must_use]
     pub fn into_owned(&self) -> nvbit::operand_t {
-        unsafe { *self.ptr }
+        unsafe { *self.inner }
     }
 
     #[inline]
     #[must_use]
     pub fn kind(&self) -> OperandKind {
-        let kind = unsafe { *self.ptr }.type_;
-        kind.into()
+        use bindings::InstrType_OperandType as OPT;
+        let operand = unsafe { *self.inner };
+        match operand.type_ {
+            OPT::IMM_UINT64 => OperandKind::ImmutableUint64 {
+                value: unsafe { operand.u.imm_uint64.value },
+            },
+            OPT::IMM_DOUBLE => OperandKind::ImmutableDouble {
+                value: unsafe { operand.u.imm_double.value },
+            },
+            OPT::UREG | OPT::REG => {
+                let reg = unsafe { operand.u.reg };
+                let prop: [u8; 256] = unsafe { std::mem::transmute(reg.prop) };
+                let prop = String::from_utf8_lossy(&prop).to_string();
+                OperandKind::Register { num: reg.num, prop }
+            }
+            OPT::UPRED | OPT::PRED => OperandKind::Predicate {
+                num: unsafe { operand.u.pred.num },
+            },
+            OPT::CBANK => {
+                let cbank = unsafe { operand.u.cbank };
+                OperandKind::CBank {
+                    id: cbank.id,
+                    has_imm_offset: cbank.has_imm_offset,
+                    imm_offset: cbank.imm_offset,
+                    has_reg_offset: cbank.has_reg_offset,
+                    reg_offset: cbank.reg_offset,
+                }
+            }
+            OPT::MREF => {
+                let mref = unsafe { operand.u.mref };
+                OperandKind::MemRef {
+                    has_ra: mref.has_ra,
+                    ra_num: mref.ra_num,
+                    ra_mod: mref.ra_mod,
+                    has_ur: mref.has_ur,
+                    ur_num: mref.ur_num,
+                    ur_mod: mref.ur_mod,
+                    has_imm: mref.has_imm,
+                    imm: mref.imm,
+                }
+            }
+            OPT::GENERIC => {
+                let array = unsafe { operand.u.generic.array };
+                let array: [u8; 256] = unsafe { std::mem::transmute(array) };
+                let array = String::from_utf8_lossy(&array).to_string();
+                OperandKind::Generic { array }
+            }
+        }
     }
-}
 
-/// Operand kind
-#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
-pub enum OperandKind {
-    ImmutableUint64 = 0,
-    ImmutableDouble = 1,
-    Register = 2,
-    Predicate = 3,
-    // todo: what does that mean?
-    URegister = 4,
-    // todo: what does that mean?
-    UPredicate = 5,
-    CBank = 6,
-    MemRef = 7,
-    Generic = 8,
-}
-
-impl From<bindings::InstrType_OperandType> for OperandKind {
     #[inline]
     #[must_use]
-    fn from(kind: bindings::InstrType_OperandType) -> Self {
-        use bindings::InstrType_OperandType as OPT;
-        match kind {
-            OPT::IMM_UINT64 => OperandKind::ImmutableUint64,
-            OPT::IMM_DOUBLE => OperandKind::ImmutableDouble,
-            OPT::REG => OperandKind::Register,
-            OPT::PRED => OperandKind::Predicate,
-            OPT::UREG => OperandKind::URegister,
-            OPT::UPRED => OperandKind::UPredicate,
-            OPT::CBANK => OperandKind::CBank,
-            OPT::MREF => OperandKind::MemRef,
-            OPT::GENERIC => OperandKind::Generic,
-        }
+    pub fn name(&self) -> String {
+        let name = unsafe { *self.inner }.str_;
+        let name: [u8; 256] = unsafe { std::mem::transmute(name) };
+        String::from_utf8_lossy(&name).to_string()
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn is_neg(&self) -> bool {
+        unsafe { *self.inner }.is_neg
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn is_not(&self) -> bool {
+        unsafe { *self.inner }.is_not
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn is_abs(&self) -> bool {
+        unsafe { *self.inner }.is_abs
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn nbytes(&self) -> u32 {
+        unsafe { *self.inner }.nbytes.unsigned_abs()
     }
 }
 
@@ -294,12 +379,12 @@ impl<'a> Instruction<'a> {
         } else {
             return None;
         };
-        let ptr = self.pin_mut().getOperand(idx);
-        if ptr.is_null() {
+        let operand = self.pin_mut().getOperand(idx);
+        if operand.is_null() {
             None
         } else {
             Some(Operand {
-                ptr,
+                inner: operand,
                 instr: PhantomData,
             })
         }
