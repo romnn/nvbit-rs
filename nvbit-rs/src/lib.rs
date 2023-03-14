@@ -4,7 +4,6 @@ pub mod cuda;
 pub mod instr;
 pub mod nvbit;
 pub mod result;
-#[cfg(feature = "stream")]
 pub mod stream;
 pub mod utils;
 
@@ -14,7 +13,6 @@ pub use cuda::*;
 pub use instr::*;
 pub use nvbit::*;
 pub use result::*;
-#[cfg(feature = "stream")]
 pub use stream::*;
 pub use utils::*;
 

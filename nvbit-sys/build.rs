@@ -263,13 +263,17 @@ fn main() {
         "unsupported target architecture {target_arch} (nvbit supports {supported:?})"
     );
 
-    // download nvbit
-    let vendored_nvbit = download_nvbit(nvbit_version, target_arch);
+    let vendored_nvbit = if std::env::var("DOCS_RS").is_ok() {
+        // use local copy for building documentation when on docs.rs
+        manifest_path()
+    } else {
+        // download nvbit
+        download_nvbit(nvbit_version, target_arch)
+    };
 
     // communicate the includes of nvbit to other crates
     println!("cargo:root={}", output_path().display());
     let nvbit_include_path = vendored_nvbit.join("nvbit_release/core/");
-    // let nvbit_include_path = manifest_path().join("nvbit_release/core/");
 
     println!(
         "cargo:rustc-link-search=native={}",

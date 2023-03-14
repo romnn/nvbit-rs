@@ -32,6 +32,18 @@ exclude = [
 [lib]
 crate-type = ["rlib", "cdylib", "staticlib"]
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+rustc-args = ["--cfg", "docsrs"]
+
+[package.metadata.cargo-feature-combinations]
+denylist = ["default"]
+
+[features]
+default = ["utils"]
+utils = []
+
 [dependencies]
 cxx = "1.0"
 
@@ -44,10 +56,3 @@ cc = { version = "1", features = ['parallel'] }
 bzip2 = "0.4"
 tar = "0.4"
 glob = "0.3"
-
-[features]
-default = ["utils"]
-utils = []
-
-[package.metadata.cargo-feature-combinations]
-denylist = ["default"]

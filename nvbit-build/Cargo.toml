@@ -24,8 +24,13 @@ keywords = [
 ]
 exclude = []
 
-[lib]
-crate-type = ["rlib"]
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+rustc-args = ["--cfg", "docsrs"]
+
+[package.metadata.cargo-feature-combinations]
+denylist = ["default"]
 
 [dependencies]
 thiserror = "1"
