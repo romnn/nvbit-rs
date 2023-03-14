@@ -2,10 +2,36 @@ use nvbit_sys::{bindings, nvbit};
 use std::marker::PhantomData;
 use std::{ffi, fmt, pin::Pin};
 
-type RegisterModifier = nvbit_sys::InstrType_RegModifierType;
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub enum RegisterModifier {
+    None = 0,
+    X1 = 1,
+    X4 = 2,
+    X8 = 3,
+    X16 = 4,
+    U32 = 5,
+    U64 = 6,
+}
+
+impl From<bindings::InstrType_RegModifierType> for RegisterModifier {
+    #[inline]
+    #[must_use]
+    fn from(mem_space: bindings::InstrType_RegModifierType) -> Self {
+        use bindings::InstrType_RegModifierType as RMT;
+        match mem_space {
+            RMT::NO_MOD => RegisterModifier::None,
+            RMT::X1 => RegisterModifier::X1,
+            RMT::X4 => RegisterModifier::X4,
+            RMT::X8 => RegisterModifier::X8,
+            RMT::X16 => RegisterModifier::X16,
+            RMT::U32 => RegisterModifier::U32,
+            RMT::U64 => RegisterModifier::U64,
+        }
+    }
+}
 
 /// An instruction operand.
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum OperandKind {
     ImmutableUint64 {
         value: u64,
@@ -46,19 +72,14 @@ pub enum OperandKind {
 
 /// An instruction operand.
 #[repr(transparent)]
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub struct Operand<'a> {
+    #[serde(serialize_with = "crate::to_raw_ptr")]
     inner: *const nvbit::operand_t,
     instr: PhantomData<Instruction<'a>>,
 }
 
 impl<'a> Operand<'a> {
-    #[inline]
-    #[must_use]
-    pub fn into_owned(&self) -> nvbit::operand_t {
-        unsafe { *self.inner }
-    }
-
     #[inline]
     #[must_use]
     pub fn kind(&self) -> OperandKind {
@@ -95,10 +116,10 @@ impl<'a> Operand<'a> {
                 OperandKind::MemRef {
                     has_ra: mref.has_ra,
                     ra_num: mref.ra_num,
-                    ra_mod: mref.ra_mod,
+                    ra_mod: mref.ra_mod.into(),
                     has_ur: mref.has_ur,
                     ur_num: mref.ur_num,
-                    ur_mod: mref.ur_mod,
+                    ur_mod: mref.ur_mod.into(),
                     has_imm: mref.has_imm,
                     imm: mref.imm,
                 }
@@ -179,7 +200,7 @@ impl From<bindings::InstrType_MemorySpace> for MemorySpace {
 }
 
 /// An instruction operand predicate.
-#[derive(Debug, Clone)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Predicate {
     /// predicate number
     pub num: i32,
@@ -191,8 +212,9 @@ pub struct Predicate {
 
 /// An instruction.
 #[repr(transparent)]
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, serde::Serialize)]
 pub struct Instruction<'a> {
+    #[serde(serialize_with = "crate::to_raw_ptr")]
     inner: *mut nvbit::Instr,
     func: PhantomData<super::Function<'a>>,
 }
@@ -423,7 +445,7 @@ impl<'a> Instruction<'a> {
 }
 
 /// Insertion point where the instrumentation for an instruction should be inserted
-#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub enum InsertionPoint {
     Before,
     After,

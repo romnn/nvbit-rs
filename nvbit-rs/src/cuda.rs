@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 
 /// Opaque handle to a CUDA `CUdeviceptr_v1` device.
 #[repr(transparent)]
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Hash, Debug, serde::Serialize)]
 pub struct Device {
     inner: nvbit_sys::CUdeviceptr_v1,
 }
@@ -22,8 +22,9 @@ impl Device {
 ///
 /// The handle can be used to uniquely identify a context,
 /// but not for interacting with the context.
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Hash, Debug, serde::Serialize)]
 pub struct ContextHandle<'a> {
+    #[serde(serialize_with = "crate::to_raw_ptr")]
     inner: nvbit_sys::CUcontext,
     module: PhantomData<&'a ()>,
 }
@@ -33,8 +34,9 @@ unsafe impl<'a> Sync for ContextHandle<'a> {}
 
 /// Opaque handle to a CUDA `CUcontext` context.
 #[repr(transparent)]
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Hash, Debug, serde::Serialize)]
 pub struct Context<'a> {
+    #[serde(serialize_with = "crate::to_raw_ptr")]
     inner: nvbit_sys::CUcontext,
     module: PhantomData<&'a ()>,
 }
@@ -80,8 +82,9 @@ impl<'a> Context<'a> {
 ///
 /// The handle can be used to uniquely identify a context,
 /// but not for interacting with the context.
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Hash, Debug, serde::Serialize)]
 pub struct FunctionHandle<'a> {
+    #[serde(serialize_with = "crate::to_raw_ptr")]
     inner: nvbit_sys::CUfunction,
     module: PhantomData<&'a ()>,
 }
@@ -90,8 +93,9 @@ unsafe impl<'a> Send for FunctionHandle<'a> {}
 unsafe impl<'a> Sync for FunctionHandle<'a> {}
 
 #[repr(transparent)]
-#[derive(PartialEq, Eq, Hash, Debug, Clone)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, serde::Serialize)]
 pub struct Stream<'a> {
+    #[serde(serialize_with = "crate::to_raw_ptr")]
     inner: nvbit_sys::CUstream,
     ctx: PhantomData<Context<'a>>,
 }
@@ -124,8 +128,9 @@ impl<'a> Stream<'a> {
 }
 
 #[repr(transparent)]
-#[derive(PartialEq, Eq, Hash, Debug, Clone)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, serde::Serialize)]
 pub struct Function<'a> {
+    #[serde(serialize_with = "crate::to_raw_ptr")]
     inner: nvbit_sys::CUfunction,
     ctx: PhantomData<Context<'a>>,
 }
@@ -202,7 +207,7 @@ impl<'a> Function<'a> {
 }
 
 /// CUDA function attribute.
-#[derive(Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub enum FunctionAttribute {
     MaxThreadsPerBlock,
     SharedSizeBytes,
@@ -299,7 +304,7 @@ impl std::fmt::Display for Dim {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, serde::Serialize)]
 pub enum EventParams<'a> {
     Launch {
         func: Function<'a>,
@@ -310,11 +315,14 @@ pub enum EventParams<'a> {
         block: Dim,
         shared_mem_bytes: u32,
         h_stream: Stream<'a>,
+        #[serde(serialize_with = "crate::to_raw_ptr")]
         kernel_params: *mut *mut ffi::c_void,
+        #[serde(serialize_with = "crate::to_raw_ptr")]
         extra: *mut *mut ffi::c_void,
     },
     MemCopyHostToDevice {
         dest_device: Device,
+        #[serde(serialize_with = "crate::to_raw_ptr")]
         src_host: *const ffi::c_void,
         bytes: u32,
     },

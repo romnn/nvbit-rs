@@ -17,7 +17,4 @@ pub use stream::*;
 pub use utils::*;
 
 #[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {}
-}
+mod tests {}

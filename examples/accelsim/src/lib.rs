@@ -41,7 +41,7 @@ fn traces_dir() -> PathBuf {
 }
 
 // 1 MiB = 2**20
-const CHANNEL_SIZE: usize = 1 << 20;
+const CHANNEL_SIZE: u32 = 1 << 20;
 
 struct Instrumentor<'c> {
     ctx: Mutex<nvbit_rs::Context<'c>>,

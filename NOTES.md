@@ -11,17 +11,12 @@ ldconfig -p | grep libcuda # also does not find it
 
 #### TODO:
 
-
-- forward the utils feature flag to the sys crate from the rs crate
-- get to build and test in github actions
-- publish to crates.io
-
-- generate less bindings?
-- finish safe abstractions in `nvbit-rs`
+- cleanup the channels with types and errors
 - write a better README.md
-
-- write to a file using a compressed stream and `serde-cbor` for example
+- what to do with the utils flag? (forward?)
 - migrate other examples to make the api really usable
+- add a test using a compressed messagepack stream (`serde-rmp`)
+- write a blogpost
 
 #### DONE:
 - rename project on github

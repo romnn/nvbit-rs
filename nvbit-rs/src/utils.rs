@@ -53,7 +53,6 @@ impl<T> DeviceChannel<T> {
     }
 }
 
-#[derive()]
 struct HostChannelInner<T> {
     channel: cxx::UniquePtr<ChannelHost>,
     buffer: super::buffer::Buffer,
@@ -68,14 +67,10 @@ where
         let packet_size = std::mem::size_of::<T>();
         while !shutdown.load(atomic::Ordering::Relaxed) {
             let buffer_ptr = self.buffer.as_mut_ptr();
-            let buffer_size = self.buffer.len();
+            let buffer_size = u32::try_from(self.buffer.len()).unwrap_or(u32::MAX);
 
-            assert!(u32::try_from(buffer_size).is_ok());
-            let num_recv_bytes = unsafe {
-                self.channel
-                    .pin_mut()
-                    .recv(buffer_ptr.cast(), buffer_size.try_into().unwrap())
-            };
+            let num_recv_bytes =
+                unsafe { self.channel.pin_mut().recv(buffer_ptr.cast(), buffer_size) };
             if num_recv_bytes > 0 {
                 let mut num_processed_bytes: usize = 0;
                 while num_processed_bytes < num_recv_bytes as usize {
@@ -94,12 +89,8 @@ where
 /// Errors that can occur when using an NVBIT managed channel.
 #[derive(thiserror::Error, Debug)]
 pub enum HostChannelError {
-    #[error("failed to create buffer")]
-    Buffer(
-        #[from]
-        #[source]
-        super::buffer::Error,
-    ),
+    #[error(transparent)]
+    Buffer(#[from] super::buffer::Error),
 }
 
 /// A host channel.
@@ -123,30 +114,26 @@ where
     ///
     /// # Errors
     /// Returns an error if a buffer of size `buffer_size` cannot be allocated.
-    ///
-    /// # Panics
-    /// * Panics if the buffer size is larger than `i32::MAX`.
     pub fn new(
         id: i32,
-        buffer_size: usize,
+        buffer_size: u32,
         dev_channel: &mut DeviceChannel<T>,
     ) -> Result<Self, HostChannelError> {
-        assert!(i32::try_from(buffer_size).is_ok());
         let channel = unsafe {
             nvbit_sys::utils::new_host_channel(
                 id,
-                buffer_size.try_into().unwrap(),
+                buffer_size.try_into().unwrap_or(i32::MAX),
                 dev_channel.as_mut_ptr().cast(),
             )
         };
-        let buffer = super::buffer::Buffer::new(buffer_size)?;
-        let inner = Arc::new(Mutex::new(HostChannelInner {
+        let buffer = super::buffer::Buffer::new(buffer_size as usize)?;
+        let inner = HostChannelInner {
             channel,
             buffer,
             packet: PhantomData,
-        }));
+        };
         Ok(Self {
-            inner,
+            inner: Arc::new(Mutex::new(inner)),
             shutdown: Arc::new(atomic::AtomicBool::new(false)),
             receiver_thread: None,
         })

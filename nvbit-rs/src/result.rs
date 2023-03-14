@@ -1,8 +1,8 @@
 use nvbit_sys::bindings;
-use std::{ptr, ffi, fmt};
+use std::{ffi, fmt, ptr};
 
 #[allow(missing_docs)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum CudaError {
     InvalidValue,
     OutOfMemory,
@@ -70,8 +70,7 @@ impl fmt::Display for CudaError {
         let msg = unsafe {
             bindings::cuGetErrorString(
                 Into::<bindings::cudaError_enum>::into(*self),
-                ptr::addr_of_mut!(msg_ptr)
-                // &mut ptr as *mut *const ffi::c_char,
+                ptr::addr_of_mut!(msg_ptr), // &mut ptr as *mut *const ffi::c_char,
             )
             .into_result()
             .map_err(|_| fmt::Error)?;

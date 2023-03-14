@@ -91,7 +91,7 @@ pub fn get_func_name<'f>(ctx: &mut Context<'_>, func: &mut Function<'f>) -> &'f 
 }
 
 /// Line information of an instruction.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct LineInfo {
     pub line: u32,
     pub file_name: String,
@@ -102,11 +102,7 @@ pub struct LineInfo {
 ///
 /// Note: binary must be compiled with --generate-line-info (-lineinfo)
 #[must_use]
-pub fn get_line_info(
-    ctx: &mut Context<'_>,
-    func: &mut Function<'_>,
-    offset: u32,
-) -> LineInfo {
+pub fn get_line_info(ctx: &mut Context<'_>, func: &mut Function<'_>, offset: u32) -> LineInfo {
     use ffi::CStr;
     use std::mem::MaybeUninit;
 
