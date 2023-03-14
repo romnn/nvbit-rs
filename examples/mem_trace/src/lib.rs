@@ -22,6 +22,18 @@ mod common {
 
 use common::mem_access_t;
 
+fn app_prefix() -> String {
+    let mut args: Vec<_> = std::env::args().collect();
+    if let Some(executable) = args.get_mut(0) {
+        *executable = PathBuf::from(&*executable)
+            .file_name()
+            .and_then(ffi::OsStr::to_str)
+            .unwrap()
+            .to_string();
+    }
+    args.join("-")
+}
+
 fn traces_dir() -> PathBuf {
     let example_dir = PathBuf::from(file!())
         .parent()
@@ -31,12 +43,13 @@ fn traces_dir() -> PathBuf {
         .to_path_buf();
     let traces_dir =
         std::env::var("TRACES_DIR").map_or_else(|_| example_dir.join("traces"), PathBuf::from);
+    // panic!("{:?}", &args);
     // make sure trace dir exists
     std::fs::create_dir_all(&traces_dir).ok();
     traces_dir
 }
 
-#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct MemAccessTraceEntry<'a> {
     pub cuda_ctx: u64,
     pub grid_launch_id: u64,
@@ -44,26 +57,45 @@ struct MemAccessTraceEntry<'a> {
     pub cta_id_y: u32,
     pub cta_id_z: u32,
     pub warp_id: u32,
-    // avoid creating a copy of the opcode string
-    pub opcode: &'a str,
-    // addr per thread of a warp?
+    pub instr_opcode: &'a str,
+    pub instr_offset: u32,
+    pub instr_idx: u32,
+    pub instr_predicate: u32,
+    pub instr_mem_space: nvbit_rs::MemorySpace,
+    pub instr_is_load: bool,
+    pub instr_is_store: bool,
+    pub instr_is_extended: bool,
+    /// Accessed address per thread of a warp
     pub addrs: [u64; 32],
 }
 
 #[allow(non_snake_case)]
 #[derive(Debug, Default, Clone)]
 struct Args {
-    pub opcode_id: std::ffi::c_int,
-    pub mref_idx: u64,
-    pub pchannel_dev: u64,
+    instr_opcode_id: std::ffi::c_int,
+    instr_offset: u32,
+    instr_idx: u32,
+    instr_predicate: u32,
+    instr_mem_space: u8,
+    instr_is_load: bool,
+    instr_is_store: bool,
+    instr_is_extended: bool,
+    mref_idx: u64,
+    pchannel_dev: u64,
 }
 
 impl Args {
     pub fn instrument(&self, instr: &mut nvbit_rs::Instruction<'_>) {
-        // predicate value
         instr.add_call_arg_guard_pred_val();
-        // opcode id
-        instr.add_call_arg_const_val32(self.opcode_id.try_into().unwrap_or_default());
+        instr.add_call_arg_const_val32(self.instr_opcode_id.try_into().unwrap_or_default());
+        instr.add_call_arg_const_val32(self.instr_offset);
+        instr.add_call_arg_const_val32(self.instr_idx);
+        instr.add_call_arg_const_val32(self.instr_predicate);
+        instr.add_call_arg_const_val32(self.instr_mem_space.into());
+        instr.add_call_arg_const_val32(self.instr_is_load.into());
+        instr.add_call_arg_const_val32(self.instr_is_store.into());
+        instr.add_call_arg_const_val32(self.instr_is_extended.into());
+
         // memory reference 64 bit address
         instr.add_call_arg_mref_addr64(self.mref_idx.try_into().unwrap_or_default());
         // add "space" for kernel function pointer,
@@ -124,7 +156,7 @@ impl Instrumentor<'static> {
     fn read_channel(self: Arc<Self>) {
         let rx = self.host_channel.lock().unwrap().read();
 
-        let trace_file_path = traces_dir().join("kernelslist");
+        let trace_file_path = traces_dir().join(format!("{}-trace", &app_prefix()));
         let mut file = std::io::BufWriter::new(
             std::fs::OpenOptions::new()
                 .write(true)
@@ -155,7 +187,8 @@ impl Instrumentor<'static> {
             // so we avoid copying the opcode string
             let cuda_ctx = self.ctx.lock().unwrap().as_ptr() as u64;
             let lock = self.id_to_opcode_map.read().unwrap();
-            let opcode = &lock[&(packet.opcode_id as usize)];
+            let opcode = &lock[&(packet.instr_opcode_id as usize)];
+
             let entry = MemAccessTraceEntry {
                 cuda_ctx,
                 grid_launch_id: packet.grid_launch_id,
@@ -163,7 +196,19 @@ impl Instrumentor<'static> {
                 cta_id_y: packet.cta_id_y.unsigned_abs(),
                 cta_id_z: packet.cta_id_z.unsigned_abs(),
                 warp_id: packet.warp_id.unsigned_abs(),
-                opcode,
+                // todo
+                instr_opcode: opcode,
+                instr_offset: packet.instr_offset,
+                instr_idx: packet.instr_idx,
+                instr_predicate: packet.instr_predicate,
+                instr_mem_space: unsafe {
+                    std::mem::transmute::<_, nvbit_rs::MemorySpace>(
+                        u8::try_from(packet.instr_mem_space).unwrap(),
+                    )
+                },
+                instr_is_load: packet.instr_is_load,
+                instr_is_store: packet.instr_is_store,
+                instr_is_extended: packet.instr_is_extended,
                 addrs: packet.addrs,
             };
             encoder.encode::<MemAccessTraceEntry>(entry).unwrap();
@@ -266,11 +311,19 @@ impl<'c> Instrumentor<'c> {
 
         // iterate on the operands
         for operand in instr.operands().collect::<Vec<_>>() {
+            // println!("operand kind: {:?}", &operand.kind());
             if let nvbit_rs::OperandKind::MemRef { .. } = operand.kind() {
                 instr.insert_call("instrument_inst", nvbit_rs::InsertionPoint::Before);
                 let mut pchannel_dev_lock = self.dev_channel.lock().unwrap();
                 let inst_args = Args {
-                    opcode_id: opcode_id.try_into().unwrap(),
+                    instr_opcode_id: opcode_id.try_into().unwrap(),
+                    instr_offset: instr.offset(),
+                    instr_idx: instr.idx(),
+                    instr_predicate: 0, // instr.predicate().unwrap_or_default(),
+                    instr_mem_space: instr.memory_space() as u8,
+                    instr_is_load: instr.is_load(),
+                    instr_is_store: instr.is_store(),
+                    instr_is_extended: instr.is_extended(),
                     mref_idx,
                     pchannel_dev: pchannel_dev_lock.as_mut_ptr() as u64,
                 };

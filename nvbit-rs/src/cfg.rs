@@ -2,7 +2,7 @@ use super::Instruction;
 
 #[derive(Debug, Default)]
 pub struct BasicBlock<'a> {
-    pub instructions: Vec<Instruction<'a>>,
+    pub instructions: Vec<&'a Instruction<'a>>,
 }
 
 #[derive(Debug, Default)]

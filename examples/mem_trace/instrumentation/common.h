@@ -10,7 +10,14 @@ typedef struct {
   int cta_id_z;
   int warp_id;
   // opcode_id is purely internal
-  uint32_t opcode_id;
+  uint32_t instr_opcode_id;
+  uint32_t instr_offset;
+  uint32_t instr_idx;
+  uint32_t instr_predicate;
+  uint32_t instr_mem_space;
+  bool instr_is_load;
+  bool instr_is_store;
+  bool instr_is_extended;
   // addr per thread of a warp?
   uint64_t addrs[32];
 } mem_access_t;

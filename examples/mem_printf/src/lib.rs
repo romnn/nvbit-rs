@@ -74,8 +74,9 @@ impl<'c> Instrumentor<'c> {
             return;
         }
         if let Some(mut func) = match params {
-            Some(EventParams::Launch { func }) => Some(func),
-            Some(EventParams::KernelLaunch { func, .. }) => Some(func),
+            Some(EventParams::Launch { func } | EventParams::KernelLaunch { func, .. }) => {
+                Some(func)
+            }
             _ => None,
         } {
             self.instrument_function_if_needed(&mut func);
@@ -154,7 +155,6 @@ impl<'c> Instrumentor<'c> {
 #[no_mangle]
 #[inline(never)]
 pub extern "C" fn nvbit_at_init() {
-    unsafe { noop() };
     println!("nvbit_at_init");
 }
 
@@ -198,6 +198,7 @@ pub extern "C" fn nvbit_at_ctx_term(ctx: nvbit_rs::Context<'static>) {
         return;
     };
 
+    unsafe { noop() };
     println!(
         "done after {:?}",
         Instant::now().duration_since(instrumentor.start)

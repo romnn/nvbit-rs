@@ -11,10 +11,12 @@
 // Instrumentation function that we want to inject.
 // Please note the use of extern "C" __device__ __noinline__
 // to prevent "dead"-code elimination by the compiler.
-extern "C" __device__ __noinline__ void instrument_inst(
-    int pred, int opcode_id, uint64_t addr, uint64_t grid_launch_id,
-    uint64_t pchannel_dev
-) {
+extern "C" __device__ __noinline__ void
+instrument_inst(int pred, int instr_opcode_id, uint32_t instr_offset,
+                uint32_t instr_idx, uint32_t instr_predicate,
+                uint32_t instr_mem_space, bool instr_is_load, bool instr_is_store,
+                bool instr_is_extended, uint64_t addr, uint64_t grid_launch_id,
+                uint64_t pchannel_dev) {
 
   /* if thread is predicated off, return */
   if (!pred) {
@@ -38,7 +40,14 @@ extern "C" __device__ __noinline__ void instrument_inst(
   ma.cta_id_y = cta.y;
   ma.cta_id_z = cta.z;
   ma.warp_id = get_warpid();
-  ma.opcode_id = opcode_id;
+  ma.instr_opcode_id = instr_opcode_id;
+  ma.instr_offset = instr_offset;
+  ma.instr_idx = instr_idx;
+  ma.instr_predicate = instr_predicate;
+  ma.instr_mem_space = instr_mem_space;
+  ma.instr_is_load = instr_is_load;
+  ma.instr_is_store = instr_is_store;
+  ma.instr_is_extended = instr_is_extended;
 
   /* first active lane pushes information on the channel */
   if (first_laneid == laneid) {

@@ -1,8 +1,14 @@
 ## nvbit-rs
 
-TODO today:
+##### Test it out
+
+```bash
+make -j -B -C test-apps/
+```
+
+Done:
 - implement messagepack and json trace dumping
-- clean up the nvbit api such that there the context is managed in nvbit-rs and the hooks are just functions
+- that does not work: clean up the nvbit api such that there the context is managed in nvbit-rs and the hooks are just functions
 
 ##### Accelsim reference
 ```bash
@@ -15,7 +21,8 @@ LD_PRELOAD=./tracer_nvbit/tracer_tool/tracer_tool.so ./nvbit-sys/nvbit_release/t
 ```bash
 cargo build --release
 make -B -j -C ./examples/accelsim
-LD_PRELOAD=./examples/accelsim/tracer.so ./nvbit-sys/nvbit_release/test-apps/vectoradd/vectoradd
+LD_PRELOAD=./target/release/libaccelsim.so ./test-apps/vectoradd/vectoradd 100
+LD_PRELOAD=./target/release/libmem_trace.so ./test-apps/vectoradd/vectoradd 100
 ```
 
 ```bash

@@ -146,17 +146,17 @@ impl<'a> Operand<'a> {
 }
 
 /// Identifier of GPU memory space.
-#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub enum MemorySpace {
-    None,
-    Local,
-    Generic,
-    Global,
-    Shared,
-    Constant,
-    GlobalToShared,
-    Surface,
-    Texture,
+    None = 0,
+    Local = 1,
+    Generic = 2,
+    Global = 3,
+    Shared = 4,
+    Constant = 5,
+    GlobalToShared = 6,
+    Surface = 7,
+    Texture = 8,
 }
 
 impl From<bindings::InstrType_MemorySpace> for MemorySpace {
@@ -197,13 +197,31 @@ pub struct Instruction<'a> {
     func: PhantomData<super::Function<'a>>,
 }
 
+impl<'a> fmt::Display for Instruction<'a> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // accesses formally require a mutable reference, but
+        // this should be okay..
+        let opcode = unsafe { nvbit_sys::Instr_getOpcode(self.inner.cast()) };
+        let opcode = unsafe { ffi::CStr::from_ptr(opcode) }
+            .to_str()
+            .unwrap_or_default();
+        f.debug_tuple("Instruction").field(&opcode).finish()
+    }
+}
+
 impl<'a> fmt::Debug for Instruction<'a> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // cannot access opcode etc. because they formally require a mutable reference
-        // (which i doubt but okay)
+        // accesses formally require a mutable reference, but
+        // this should be okay..
+        let opcode = unsafe { nvbit_sys::Instr_getOpcode(self.inner.cast()) };
+        let opcode = unsafe { ffi::CStr::from_ptr(opcode) }
+            .to_str()
+            .unwrap_or_default();
+
         f.debug_struct("Instruction")
-            // .field("opcode", &self.opcode())
+            .field("opcode", &opcode)
             .finish()
     }
 }
@@ -281,7 +299,7 @@ impl<'a> Instruction<'a> {
     /// Returns the instruction predicate.
     #[inline]
     #[must_use]
-    pub fn has_pred(&mut self) -> Option<Predicate> {
+    pub fn predicate(&mut self) -> Option<Predicate> {
         if self.pin_mut().hasPred() {
             Some(Predicate {
                 num: self.pin_mut().getPredNum(),
