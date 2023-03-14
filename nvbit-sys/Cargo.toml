@@ -25,7 +25,6 @@ keywords = [
   "ffi",
 ]
 exclude = [
-  "nvbit_release/*",
   "debug/*",
 ]
 
