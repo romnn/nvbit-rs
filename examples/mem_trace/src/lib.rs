@@ -43,7 +43,6 @@ fn traces_dir() -> PathBuf {
         .to_path_buf();
     let traces_dir =
         std::env::var("TRACES_DIR").map_or_else(|_| example_dir.join("traces"), PathBuf::from);
-    // panic!("{:?}", &args);
     // make sure trace dir exists
     std::fs::create_dir_all(&traces_dir).ok();
     traces_dir
@@ -67,7 +66,7 @@ struct MemAccessTraceEntry<'a> {
     pub addrs: [u64; 32],
 }
 
-#[allow(non_snake_case)]
+#[allow(non_snake_case, clippy::struct_excessive_bools)]
 #[derive(Debug, Default, Clone)]
 struct Args {
     instr_opcode_id: std::ffi::c_int,

@@ -71,22 +71,93 @@ where
     }
 }
 
+/// A decoder to deserialize a stream of packets.
+#[derive(Debug, Clone)]
+pub struct Decoder<T, CB> {
+    callback: CB,
+    phantom: std::marker::PhantomData<T>,
+}
+
+impl<T, CB> Decoder<T, CB> {
+    pub fn new(callback: CB) -> Self {
+        Self {
+            callback,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'de, T, CB> serde::de::Visitor<'de> for Decoder<T, CB>
+where
+    T: serde::Deserialize<'de>,
+    CB: FnMut(T),
+{
+    type Value = ();
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("array of packets")
+    }
+
+    fn visit_seq<A>(mut self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::SeqAccess<'de>,
+    {
+        while let Some(item) = seq.next_element::<T>()? {
+            (self.callback)(item);
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Encoder;
+    use super::{Decoder, Encoder};
     use anyhow::Result;
+    use serde::Deserializer;
+    use std::io::{BufReader, BufWriter, Cursor};
 
     #[test]
     fn json() -> Result<()> {
-        let mut buf = std::io::BufWriter::new(Vec::new());
-        let mut serializer = serde_json::Serializer::new(&mut buf);
+        let mut writer = BufWriter::new(Vec::new());
+        let mut serializer = serde_json::Serializer::new(&mut writer);
         let mut encoder = Encoder::new(&mut serializer)?;
         encoder.encode::<u32>(1)?;
         encoder.encode::<u32>(2)?;
         encoder.encode::<u32>(3)?;
         encoder.finalize()?;
-        let result = String::from_utf8(buf.into_inner()?)?;
+
+        let buf = writer.into_inner()?;
+        let result = std::str::from_utf8(&buf)?;
         assert_eq!(result, "[1,2,3]");
+
+        let mut values: Vec<u32> = Vec::new();
+        let reader = BufReader::new(Cursor::new(buf));
+        let mut deserializer = serde_json::Deserializer::from_reader(reader);
+        let decoder = Decoder::new(|value| values.push(value));
+        deserializer.deserialize_seq(decoder)?;
+
+        assert_eq!(values, [1, 2, 3]);
+        Ok(())
+    }
+
+    #[test]
+    fn messagepack() -> Result<()> {
+        let buf = Vec::new();
+        let mut writer = BufWriter::new(buf);
+        let mut serializer = rmp_serde::Serializer::new(&mut writer);
+        let mut encoder = Encoder::new(&mut serializer)?;
+        encoder.encode::<u32>(1)?;
+        encoder.encode::<u32>(2)?;
+        encoder.encode::<u32>(3)?;
+        encoder.finalize()?;
+
+        let mut values: Vec<u32> = Vec::new();
+        let reader = BufReader::new(Cursor::new(writer.into_inner()?));
+        let mut deserializer = rmp_serde::Deserializer::new(reader);
+        let decoder = Decoder::new(|value| values.push(value));
+        deserializer.deserialize_seq(decoder)?;
+
+        assert_eq!(values, [1, 2, 3]);
         Ok(())
     }
 }
