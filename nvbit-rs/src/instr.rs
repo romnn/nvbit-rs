@@ -200,10 +200,10 @@ impl From<bindings::InstrType_MemorySpace> for MemorySpace {
 }
 
 /// An instruction operand predicate.
-#[derive(PartialEq, Eq, Hash, Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Default, PartialEq, Eq, Hash, Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Predicate {
     /// predicate number
-    pub num: i32,
+    pub num: std::ffi::c_int,
     /// whether predicate is negated (i.e. @!P0).
     pub is_neg: bool,
     /// whether predicate is uniform predicate (e.g., @UP0).

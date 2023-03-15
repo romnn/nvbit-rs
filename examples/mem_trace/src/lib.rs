@@ -53,14 +53,12 @@ fn traces_dir() -> PathBuf {
 struct MemAccessTraceEntry<'a> {
     pub cuda_ctx: u64,
     pub grid_launch_id: u64,
-    pub cta_id_x: u32,
-    pub cta_id_y: u32,
-    pub cta_id_z: u32,
+    pub cta_id: nvbit_rs::Dim,
     pub warp_id: u32,
     pub instr_opcode: &'a str,
     pub instr_offset: u32,
     pub instr_idx: u32,
-    pub instr_predicate: u32,
+    pub instr_predicate: nvbit_rs::Predicate,
     pub instr_mem_space: nvbit_rs::MemorySpace,
     pub instr_is_load: bool,
     pub instr_is_store: bool,
@@ -75,7 +73,9 @@ struct Args {
     instr_opcode_id: std::ffi::c_int,
     instr_offset: u32,
     instr_idx: u32,
-    instr_predicate: u32,
+    instr_predicate_num: std::ffi::c_int,
+    instr_predicate_is_neg: bool,
+    instr_predicate_is_uniform: bool,
     instr_mem_space: u8,
     instr_is_load: bool,
     instr_is_store: bool,
@@ -90,7 +90,9 @@ impl Args {
         instr.add_call_arg_const_val32(self.instr_opcode_id.try_into().unwrap_or_default());
         instr.add_call_arg_const_val32(self.instr_offset);
         instr.add_call_arg_const_val32(self.instr_idx);
-        instr.add_call_arg_const_val32(self.instr_predicate);
+        instr.add_call_arg_const_val32(self.instr_predicate_num.try_into().unwrap_or_default());
+        instr.add_call_arg_const_val32(self.instr_predicate_is_neg.into());
+        instr.add_call_arg_const_val32(self.instr_predicate_is_uniform.into());
         instr.add_call_arg_const_val32(self.instr_mem_space.into());
         instr.add_call_arg_const_val32(self.instr_is_load.into());
         instr.add_call_arg_const_val32(self.instr_is_store.into());
@@ -188,24 +190,31 @@ impl Instrumentor<'static> {
             let cuda_ctx = self.ctx.lock().unwrap().as_ptr() as u64;
             let lock = self.id_to_opcode_map.read().unwrap();
             let opcode = &lock[&(packet.instr_opcode_id as usize)];
+            let cta_id = nvbit_rs::Dim {
+                x: packet.cta_id_x.unsigned_abs(),
+                y: packet.cta_id_y.unsigned_abs(),
+                z: packet.cta_id_z.unsigned_abs(),
+            };
+            let instr_predicate = nvbit_rs::Predicate {
+                num: packet.instr_predicate_num,
+                is_neg: packet.instr_predicate_is_neg,
+                is_uniform: packet.instr_predicate_is_uniform,
+            };
+            let instr_mem_space: nvbit_rs::MemorySpace = unsafe {
+                let variant = u8::try_from(packet.instr_mem_space).unwrap();
+                std::mem::transmute(variant)
+            };
 
             let entry = MemAccessTraceEntry {
                 cuda_ctx,
                 grid_launch_id: packet.grid_launch_id,
-                cta_id_x: packet.cta_id_x.unsigned_abs(),
-                cta_id_y: packet.cta_id_y.unsigned_abs(),
-                cta_id_z: packet.cta_id_z.unsigned_abs(),
+                cta_id,
                 warp_id: packet.warp_id.unsigned_abs(),
-                // todo
                 instr_opcode: opcode,
                 instr_offset: packet.instr_offset,
                 instr_idx: packet.instr_idx,
-                instr_predicate: packet.instr_predicate,
-                instr_mem_space: unsafe {
-                    std::mem::transmute::<_, nvbit_rs::MemorySpace>(
-                        u8::try_from(packet.instr_mem_space).unwrap(),
-                    )
-                },
+                instr_predicate,
+                instr_mem_space,
                 instr_is_load: packet.instr_is_load,
                 instr_is_store: packet.instr_is_store,
                 instr_is_extended: packet.instr_is_extended,
@@ -315,11 +324,14 @@ impl<'c> Instrumentor<'c> {
             if let nvbit_rs::OperandKind::MemRef { .. } = operand.kind() {
                 instr.insert_call("instrument_inst", nvbit_rs::InsertionPoint::Before);
                 let mut pchannel_dev_lock = self.dev_channel.lock().unwrap();
+                let predicate = instr.predicate().unwrap_or_default();
                 let inst_args = Args {
                     instr_opcode_id: opcode_id.try_into().unwrap(),
                     instr_offset: instr.offset(),
                     instr_idx: instr.idx(),
-                    instr_predicate: 0, // instr.predicate().unwrap_or_default(),
+                    instr_predicate_num: predicate.num,
+                    instr_predicate_is_neg: predicate.is_neg,
+                    instr_predicate_is_uniform: predicate.is_uniform,
                     instr_mem_space: instr.memory_space() as u8,
                     instr_is_load: instr.is_load(),
                     instr_is_store: instr.is_store(),

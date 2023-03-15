@@ -13,7 +13,9 @@ typedef struct {
   uint32_t instr_opcode_id;
   uint32_t instr_offset;
   uint32_t instr_idx;
-  uint32_t instr_predicate;
+  int instr_predicate_num;
+  bool instr_predicate_is_neg;
+  bool instr_predicate_is_uniform;
   uint32_t instr_mem_space;
   bool instr_is_load;
   bool instr_is_store;
