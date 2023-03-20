@@ -320,6 +320,11 @@ pub enum EventParams<'a> {
         #[serde(serialize_with = "crate::to_raw_ptr")]
         extra: *mut *mut ffi::c_void,
     },
+    MemAlloc {
+        #[serde(serialize_with = "crate::to_raw_ptr")]
+        device_ptr: *mut u64,
+        bytes: usize,
+    },
     MemCopyHostToDevice {
         dest_device: Device,
         #[serde(serialize_with = "crate::to_raw_ptr")]
@@ -334,6 +339,13 @@ impl<'a> EventParams<'a> {
     pub fn new(cbid: nvbit_sys::nvbit_api_cuda_t, params: *mut ffi::c_void) -> Option<Self> {
         use nvbit_sys::nvbit_api_cuda_t as cuda_t;
         match cbid {
+            cuda_t::API_CUDA_cuMemAlloc => {
+                let p = unsafe { &mut *params.cast::<nvbit_sys::cuMemAlloc_v2_params>() };
+                Some(Self::MemAlloc {
+                    device_ptr: p.dptr,
+                    bytes: p.bytesize,
+                })
+            }
             cuda_t::API_CUDA_cuMemcpyHtoD_v2 => {
                 let p = unsafe { &mut *params.cast::<nvbit_sys::cuMemcpyHtoD_params>() };
                 Some(Self::MemCopyHostToDevice {
