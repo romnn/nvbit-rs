@@ -320,6 +320,9 @@ pub enum EventParams<'a> {
         #[serde(serialize_with = "crate::to_raw_ptr")]
         extra: *mut *mut ffi::c_void,
     },
+    MemFree {
+        device_ptr: u64,
+    },
     MemAlloc {
         #[serde(serialize_with = "crate::to_raw_ptr")]
         device_ptr: *mut u64,
@@ -339,7 +342,11 @@ impl<'a> EventParams<'a> {
     pub fn new(cbid: nvbit_sys::nvbit_api_cuda_t, params: *mut ffi::c_void) -> Option<Self> {
         use nvbit_sys::nvbit_api_cuda_t as cuda_t;
         match cbid {
-            cuda_t::API_CUDA_cuMemAlloc => {
+            cuda_t::API_CUDA_cuMemFree | cuda_t::API_CUDA_cuMemFree_v2 => {
+                let p = unsafe { &mut *params.cast::<nvbit_sys::cuMemFree_v2_params>() };
+                Some(Self::MemFree { device_ptr: p.dptr })
+            }
+            cuda_t::API_CUDA_cuMemAlloc | cuda_t::API_CUDA_cuMemAlloc_v2 => {
                 let p = unsafe { &mut *params.cast::<nvbit_sys::cuMemAlloc_v2_params>() };
                 Some(Self::MemAlloc {
                     device_ptr: p.dptr,
