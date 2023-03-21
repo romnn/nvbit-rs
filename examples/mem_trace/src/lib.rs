@@ -246,54 +246,61 @@ impl<'c> Instrumentor<'c> {
         params: *mut ffi::c_void,
         _pstatus: *mut nvbit_sys::CUresult,
     ) {
-        use nvbit_rs::EventParams;
         if *self.skip_flag.lock().unwrap() {
             return;
         }
 
-        let params = EventParams::new(cbid, params);
+        let params = nvbit_rs::EventParams::new(cbid, params);
 
-        if let Some(EventParams::KernelLaunch {
-            mut func,
-            grid,
-            block,
-            shared_mem_bytes,
-            h_stream,
-            ..
-        }) = params
-        {
-            // make sure GPU is idle
-            unsafe { nvbit_sys::cuCtxSynchronize() };
-
-            if !is_exit {
-                self.instrument_function_if_needed(&mut func);
-
-                let ctx = &mut self.ctx.lock().unwrap();
-                let mut grid_launch_id = self.grid_launch_id.lock().unwrap();
-
-                let nregs = func.num_registers().unwrap();
-                let shmem_static_nbytes = func.shared_memory_bytes().unwrap();
-                let func_name = func.name(ctx);
-                let pc = func.addr();
-
-                println!("MEMTRACE: CTX {:#06x} - LAUNCH", ctx.as_ptr() as u64);
-                println!("\tKernel pc: {pc:#06x}");
-                println!("\tKernel name: {func_name}");
-                println!("\tGrid launch id: {grid_launch_id}");
-                println!("\tGrid size: {grid}");
-                println!("\tBlock size: {block}");
-                println!("\tNum registers: {nregs}");
-                println!(
-                    "\tShared memory bytes: {}",
-                    shmem_static_nbytes + shared_mem_bytes as usize
-                );
-                println!("\tCUDA stream id: {}", h_stream.as_ptr() as u64);
-
-                *grid_launch_id += 1;
-
-                // enable instrumented code to run
-                func.enable_instrumented(ctx, true, true);
+        match params {
+            Some(nvbit_rs::EventParams::MemAlloc { device_ptr, bytes }) => {
+                if is_exit {
+                    // addresses are only valid on exit
+                    println!("allocated {bytes} bytes at {device_ptr:#06x} ({device_ptr})");
+                }
             }
+            Some(nvbit_rs::EventParams::KernelLaunch {
+                mut func,
+                grid,
+                block,
+                shared_mem_bytes,
+                h_stream,
+                ..
+            }) => {
+                // make sure GPU is idle
+                unsafe { nvbit_sys::cuCtxSynchronize() };
+
+                if !is_exit {
+                    self.instrument_function_if_needed(&mut func);
+
+                    let ctx = &mut self.ctx.lock().unwrap();
+                    let mut grid_launch_id = self.grid_launch_id.lock().unwrap();
+
+                    let nregs = func.num_registers().unwrap();
+                    let shmem_static_nbytes = func.shared_memory_bytes().unwrap();
+                    let func_name = func.name(ctx);
+                    let pc = func.addr();
+
+                    println!("MEMTRACE: CTX {:#06x} - LAUNCH", ctx.as_ptr() as u64);
+                    println!("\tKernel pc: {pc:#06x}");
+                    println!("\tKernel name: {func_name}");
+                    println!("\tGrid launch id: {grid_launch_id}");
+                    println!("\tGrid size: {grid}");
+                    println!("\tBlock size: {block}");
+                    println!("\tNum registers: {nregs}");
+                    println!(
+                        "\tShared memory bytes: {}",
+                        shmem_static_nbytes + shared_mem_bytes as usize
+                    );
+                    println!("\tCUDA stream id: {}", h_stream.as_ptr() as u64);
+
+                    *grid_launch_id += 1;
+
+                    // enable instrumented code to run
+                    func.enable_instrumented(ctx, true, true);
+                }
+            }
+            _ => {}
         }
     }
 

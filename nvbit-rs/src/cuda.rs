@@ -324,8 +324,7 @@ pub enum EventParams<'a> {
         device_ptr: u64,
     },
     MemAlloc {
-        #[serde(serialize_with = "crate::to_raw_ptr")]
-        device_ptr: *mut u64,
+        device_ptr: u64,
         bytes: usize,
     },
     MemCopyHostToDevice {
@@ -349,7 +348,7 @@ impl<'a> EventParams<'a> {
             cuda_t::API_CUDA_cuMemAlloc | cuda_t::API_CUDA_cuMemAlloc_v2 => {
                 let p = unsafe { &mut *params.cast::<nvbit_sys::cuMemAlloc_v2_params>() };
                 Some(Self::MemAlloc {
-                    device_ptr: p.dptr,
+                    device_ptr: unsafe { *p.dptr },
                     bytes: p.bytesize,
                 })
             }
