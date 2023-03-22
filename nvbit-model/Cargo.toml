@@ -1,13 +1,13 @@
 [package]
-name = "nvbit-io"
+name = "nvbit-model"
 version = "0.0.17"
 edition = "2021"
 publish = true
 authors = ["romnn <contact@romnn.com>"]
-description = "NVIDIA NVBIT streaming encoder and decoder implementations using serde"
+description = "NVIDIA NVBIT models for serialization and deserialization"
 license-file = "../LICENSE"
 readme = "../README.md"
-documentation = "https://docs.rs/nvbit-io"
+documentation = "https://docs.rs/nvbit-model"
 homepage = "https://github.com/romnn/nvbit-rs"
 repository = "https://github.com/romnn/nvbit-rs"
 categories = [
@@ -36,6 +36,3 @@ denylist = ["default"]
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
-anyhow = "1"
-serde_json = "1"
-rmp-serde = "1"

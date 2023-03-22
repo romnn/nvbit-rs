@@ -45,6 +45,7 @@ utils = []
 
 [dependencies]
 cxx = "1.0"
+nvbit-model = { path = "../nvbit-model" }
 
 [build-dependencies]
 reqwest = { version = "0", features = ["blocking"] }

@@ -4,6 +4,7 @@ members = [
   "nvbit-rs",
   "nvbit-build",
   "nvbit-io",
+  "nvbit-model",
   "examples/*"
 ]
 

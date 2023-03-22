@@ -5,7 +5,7 @@
 mod instrument_inst;
 
 use lazy_static::lazy_static;
-use nvbit_rs::{DeviceChannel, HostChannel};
+use nvbit_rs::{model, DeviceChannel, HostChannel};
 use rustacuda::memory::UnifiedBox;
 use std::collections::{HashMap, HashSet};
 use std::ffi;
@@ -161,8 +161,8 @@ lazy_static! {
 struct KernelMetadata<'a> {
     name: &'a str,
     kernel_id: u64,
-    grid: nvbit_rs::Dim,
-    block: nvbit_rs::Dim,
+    grid: model::Dim,
+    block: model::Dim,
     shared_mem_bytes: usize,
     nregs: i32,
     binary_version: i32,

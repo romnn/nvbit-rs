@@ -8,8 +8,7 @@ pub mod utils;
     clippy::restriction,
     clippy::nursery
 )]
-pub mod bindings {
-    include!(concat!(env!("OUT_DIR"), "/bindings/nvbit.rs"));
-}
+pub mod bindings;
 
 pub use bindings::*;
+pub use nvbit_model as model;

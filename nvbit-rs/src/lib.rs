@@ -12,6 +12,7 @@ pub use cfg::*;
 pub use cuda::*;
 pub use instr::*;
 pub use nvbit::*;
+pub use nvbit_sys::model;
 pub use result::*;
 pub use ser::*;
 pub use utils::*;

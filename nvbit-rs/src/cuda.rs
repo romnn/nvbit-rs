@@ -1,12 +1,20 @@
 use super::{CudaResult, IntoCudaResult};
+use nvbit_sys::model;
 use std::ffi;
 use std::marker::PhantomData;
 
 /// Opaque handle to a CUDA `CUdeviceptr_v1` device.
 #[repr(transparent)]
-#[derive(PartialEq, Eq, Hash, Debug, serde::Serialize)]
+#[derive(PartialEq, Eq, Hash, Debug)]
 pub struct Device {
     inner: nvbit_sys::CUdeviceptr_v1,
+}
+
+impl Into<model::Device> for &Device {
+    #[inline]
+    fn into(self) -> model::Device {
+        model::Device(self.as_ptr() as u64)
+    }
 }
 
 impl Device {
@@ -16,15 +24,21 @@ impl Device {
     pub fn wrap(inner: nvbit_sys::CUdeviceptr_v1) -> Self {
         Self { inner }
     }
+
+    #[inline]
+    #[must_use]
+    pub fn as_ptr(&self) -> nvbit_sys::CUdeviceptr_v1 {
+        self.inner
+    }
 }
 
 /// Opaque handle to a CUDA `CUcontext` context.
 ///
 /// The handle can be used to uniquely identify a context,
 /// but not for interacting with the context.
-#[derive(PartialEq, Eq, Hash, Debug, serde::Serialize)]
+#[derive(PartialEq, Eq, Hash, Debug)]
 pub struct ContextHandle<'a> {
-    #[serde(serialize_with = "crate::ser::to_raw_ptr")]
+    // #[serde(serialize_with = "crate::ser::to_raw_ptr")]
     inner: nvbit_sys::CUcontext,
     module: PhantomData<&'a ()>,
 }
@@ -32,11 +46,26 @@ pub struct ContextHandle<'a> {
 unsafe impl<'a> Send for ContextHandle<'a> {}
 unsafe impl<'a> Sync for ContextHandle<'a> {}
 
+impl<'a> ContextHandle<'a> {
+    #[inline]
+    #[must_use]
+    pub fn as_ptr(&self) -> *const nvbit_sys::CUctx_st {
+        self.inner
+    }
+}
+
+impl Into<model::Context> for &ContextHandle<'_> {
+    #[inline]
+    fn into(self) -> model::Context {
+        model::Context(self.as_ptr() as u64)
+    }
+}
+
 /// Opaque handle to a CUDA `CUcontext` context.
 #[repr(transparent)]
-#[derive(PartialEq, Eq, Hash, Debug, serde::Serialize)]
+#[derive(PartialEq, Eq, Hash, Debug)]
 pub struct Context<'a> {
-    #[serde(serialize_with = "crate::ser::to_raw_ptr")]
+    // #[serde(serialize_with = "crate::ser::to_raw_ptr")]
     inner: nvbit_sys::CUcontext,
     module: PhantomData<&'a ()>,
 }
@@ -78,6 +107,13 @@ impl<'a> Context<'a> {
     }
 }
 
+impl Into<model::Context> for &Context<'_> {
+    #[inline]
+    fn into(self) -> model::Context {
+        model::Context(self.as_ptr() as u64)
+    }
+}
+
 /// A handle to a CUDA `CUfunction` function.
 ///
 /// The handle can be used to uniquely identify a context,
@@ -91,6 +127,21 @@ pub struct FunctionHandle<'a> {
 
 unsafe impl<'a> Send for FunctionHandle<'a> {}
 unsafe impl<'a> Sync for FunctionHandle<'a> {}
+
+impl<'a> FunctionHandle<'a> {
+    #[inline]
+    #[must_use]
+    pub fn as_ptr(&self) -> nvbit_sys::CUfunction {
+        self.inner.cast()
+    }
+}
+
+impl Into<model::Function> for &FunctionHandle<'_> {
+    #[inline]
+    fn into(self) -> model::Function {
+        model::Function(self.as_ptr() as u64)
+    }
+}
 
 #[repr(transparent)]
 #[derive(PartialEq, Eq, Hash, Debug, Clone, serde::Serialize)]
@@ -124,6 +175,13 @@ impl<'a> Stream<'a> {
     #[must_use]
     pub fn as_mut_ptr(&mut self) -> *mut nvbit_sys::CUstream_st {
         self.inner.cast()
+    }
+}
+
+impl Into<model::Stream> for &Stream<'_> {
+    #[inline]
+    fn into(self) -> model::Stream {
+        model::Stream(self.as_ptr() as u64)
     }
 }
 
@@ -206,42 +264,10 @@ impl<'a> Function<'a> {
     }
 }
 
-/// CUDA function attribute.
-#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
-pub enum FunctionAttribute {
-    MaxThreadsPerBlock,
-    SharedSizeBytes,
-    ConstSizeBytes,
-    LocalSizeBytes,
-    NumRegs,
-    PTXVersion,
-    BinaryVersion,
-    CacheModeCA,
-    MaxDynamicSharedSizeBytes,
-    PreferredSharedMemoryCarveout,
-    Max,
-}
-
-impl From<FunctionAttribute> for nvbit_sys::CUfunction_attribute_enum {
-    fn from(point: FunctionAttribute) -> nvbit_sys::CUfunction_attribute_enum {
-        use nvbit_sys::CUfunction_attribute_enum as ATTR;
-        match point {
-            FunctionAttribute::MaxThreadsPerBlock => ATTR::CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-            FunctionAttribute::SharedSizeBytes => ATTR::CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
-            FunctionAttribute::ConstSizeBytes => ATTR::CU_FUNC_ATTRIBUTE_CONST_SIZE_BYTES,
-            FunctionAttribute::LocalSizeBytes => ATTR::CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
-            FunctionAttribute::NumRegs => ATTR::CU_FUNC_ATTRIBUTE_NUM_REGS,
-            FunctionAttribute::PTXVersion => ATTR::CU_FUNC_ATTRIBUTE_PTX_VERSION,
-            FunctionAttribute::BinaryVersion => ATTR::CU_FUNC_ATTRIBUTE_BINARY_VERSION,
-            FunctionAttribute::CacheModeCA => ATTR::CU_FUNC_ATTRIBUTE_CACHE_MODE_CA,
-            FunctionAttribute::MaxDynamicSharedSizeBytes => {
-                ATTR::CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES
-            }
-            FunctionAttribute::PreferredSharedMemoryCarveout => {
-                ATTR::CU_FUNC_ATTRIBUTE_PREFERRED_SHARED_MEMORY_CARVEOUT
-            }
-            FunctionAttribute::Max => ATTR::CU_FUNC_ATTRIBUTE_MAX,
-        }
+impl Into<model::Function> for &Function<'_> {
+    #[inline]
+    fn into(self) -> model::Function {
+        model::Function(self.as_ptr() as u64)
     }
 }
 
@@ -252,7 +278,7 @@ impl<'a> Function<'a> {
     /// Returns an error if the CUDA attribute can not be read.
     pub fn num_registers(&mut self) -> CudaResult<i32> {
         let mut value = 0;
-        self.get_attribute(&mut value, FunctionAttribute::NumRegs)?;
+        self.get_attribute(&mut value, model::FunctionAttribute::NumRegs)?;
         Ok(value)
     }
 
@@ -262,7 +288,7 @@ impl<'a> Function<'a> {
     /// Returns an error if the CUDA attribute can not be read.
     pub fn shared_memory_bytes(&mut self) -> CudaResult<usize> {
         let mut value = 0;
-        self.get_attribute(&mut value, FunctionAttribute::SharedSizeBytes)?;
+        self.get_attribute(&mut value, model::FunctionAttribute::SharedSizeBytes)?;
         Ok(value)
     }
 
@@ -272,7 +298,7 @@ impl<'a> Function<'a> {
     /// Returns an error if the CUDA attribute can not be read.
     pub fn binary_version(&mut self) -> CudaResult<i32> {
         let mut value = 0;
-        self.get_attribute(&mut value, FunctionAttribute::BinaryVersion)?;
+        self.get_attribute(&mut value, model::FunctionAttribute::BinaryVersion)?;
         Ok(value)
     }
 
@@ -282,7 +308,11 @@ impl<'a> Function<'a> {
     ///
     /// # Errors
     /// Returns an error if the CUDA attribute can not be read.
-    pub fn get_attribute<T>(&mut self, dest: &mut T, attr: FunctionAttribute) -> CudaResult<()> {
+    pub fn get_attribute<T>(
+        &mut self,
+        dest: &mut T,
+        attr: model::FunctionAttribute,
+    ) -> CudaResult<()> {
         let result = unsafe {
             nvbit_sys::cuFuncGetAttribute((dest as *mut T).cast(), attr.into(), self.as_mut_ptr())
         };
@@ -291,33 +321,20 @@ impl<'a> Function<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub struct Dim {
-    pub x: u32,
-    pub y: u32,
-    pub z: u32,
-}
-
-impl std::fmt::Display for Dim {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "({},{},{})", self.x, self.y, self.z)
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, serde::Serialize)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum EventParams<'a> {
     Launch {
         func: Function<'a>,
     },
     KernelLaunch {
         func: Function<'a>,
-        grid: Dim,
-        block: Dim,
+        grid: model::Dim,
+        block: model::Dim,
         shared_mem_bytes: u32,
         h_stream: Stream<'a>,
-        #[serde(serialize_with = "crate::ser::to_raw_ptr")]
+        // #[serde(serialize_with = "crate::ser::to_raw_ptr")]
         kernel_params: *mut *mut ffi::c_void,
-        #[serde(serialize_with = "crate::ser::to_raw_ptr")]
+        // #[serde(serialize_with = "crate::ser::to_raw_ptr")]
         extra: *mut *mut ffi::c_void,
     },
     MemFree {
@@ -329,7 +346,7 @@ pub enum EventParams<'a> {
     },
     MemCopyHostToDevice {
         dest_device: Device,
-        #[serde(serialize_with = "crate::ser::to_raw_ptr")]
+        // #[serde(serialize_with = "crate::ser::to_raw_ptr")]
         src_host: *const ffi::c_void,
         bytes: u32,
     },
@@ -374,12 +391,12 @@ impl<'a> EventParams<'a> {
                 let p = unsafe { &mut *params.cast::<nvbit_sys::cuLaunchKernel_params>() };
                 Some(Self::KernelLaunch {
                     func: Function::wrap(p.f),
-                    grid: Dim {
+                    grid: model::Dim {
                         x: p.gridDimX,
                         y: p.gridDimY,
                         z: p.gridDimZ,
                     },
-                    block: Dim {
+                    block: model::Dim {
                         x: p.blockDimX,
                         y: p.blockDimY,
                         z: p.blockDimZ,

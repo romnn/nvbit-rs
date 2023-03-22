@@ -2,7 +2,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 use lazy_static::lazy_static;
-use nvbit_rs::{DeviceChannel, HostChannel};
+use nvbit_rs::{model, DeviceChannel, HostChannel};
 use std::collections::{HashMap, HashSet};
 use std::ffi;
 use std::path::PathBuf;
@@ -52,7 +52,7 @@ fn traces_dir() -> PathBuf {
 struct MemAccessTraceEntry<'a> {
     pub cuda_ctx: u64,
     pub grid_launch_id: u64,
-    pub cta_id: nvbit_rs::Dim,
+    pub cta_id: model::Dim,
     pub warp_id: u32,
     pub instr_opcode: &'a str,
     pub instr_offset: u32,
@@ -189,7 +189,7 @@ impl Instrumentor<'static> {
             let cuda_ctx = self.ctx.lock().unwrap().as_ptr() as u64;
             let lock = self.id_to_opcode_map.read().unwrap();
             let opcode = &lock[&(packet.instr_opcode_id as usize)];
-            let cta_id = nvbit_rs::Dim {
+            let cta_id = model::Dim {
                 x: packet.cta_id_x.unsigned_abs(),
                 y: packet.cta_id_y.unsigned_abs(),
                 z: packet.cta_id_z.unsigned_abs(),
