@@ -4,7 +4,7 @@ pub mod cuda;
 pub mod instr;
 pub mod nvbit;
 pub mod result;
-pub mod stream;
+pub mod ser;
 pub mod utils;
 
 pub use buffer::*;
@@ -13,8 +13,5 @@ pub use cuda::*;
 pub use instr::*;
 pub use nvbit::*;
 pub use result::*;
-pub use stream::*;
+pub use ser::*;
 pub use utils::*;
-
-#[cfg(test)]
-mod tests {}

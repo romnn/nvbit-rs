@@ -1,8 +1,9 @@
-use nvbit_sys::{bindings, nvbit};
+use nvbit_sys::bindings;
+use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 use std::{ffi, fmt, pin::Pin};
 
-#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum RegisterModifier {
     None = 0,
     X1 = 1,
@@ -31,7 +32,7 @@ impl From<bindings::InstrType_RegModifierType> for RegisterModifier {
 }
 
 /// An instruction operand.
-#[derive(PartialEq, Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum OperandKind {
     ImmutableUint64 {
         value: u64,
@@ -72,10 +73,10 @@ pub enum OperandKind {
 
 /// An instruction operand.
 #[repr(transparent)]
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Serialize)]
 pub struct Operand<'a> {
     #[serde(serialize_with = "crate::to_raw_ptr")]
-    inner: *const nvbit::operand_t,
+    inner: *const nvbit_sys::nvbit::operand_t,
     instr: PhantomData<Instruction<'a>>,
 }
 
@@ -215,7 +216,7 @@ pub struct Predicate {
 #[derive(PartialEq, Eq, Hash, serde::Serialize)]
 pub struct Instruction<'a> {
     #[serde(serialize_with = "crate::to_raw_ptr")]
-    inner: *mut nvbit::Instr,
+    inner: *mut nvbit_sys::nvbit::Instr,
     func: PhantomData<super::Function<'a>>,
 }
 
@@ -248,26 +249,26 @@ impl<'a> fmt::Debug for Instruction<'a> {
     }
 }
 
-impl<'a> AsMut<nvbit::Instr> for Instruction<'a> {
+impl<'a> AsMut<nvbit_sys::nvbit::Instr> for Instruction<'a> {
     #[inline]
     #[must_use]
-    fn as_mut(&mut self) -> &mut nvbit::Instr {
-        unsafe { &mut *self.inner as &mut nvbit::Instr }
+    fn as_mut(&mut self) -> &mut nvbit_sys::nvbit::Instr {
+        unsafe { &mut *self.inner as &mut nvbit_sys::nvbit::Instr }
     }
 }
 
-impl<'a> AsRef<nvbit::Instr> for Instruction<'a> {
+impl<'a> AsRef<nvbit_sys::nvbit::Instr> for Instruction<'a> {
     #[inline]
     #[must_use]
-    fn as_ref(&self) -> &nvbit::Instr {
-        unsafe { &*self.inner as &nvbit::Instr }
+    fn as_ref(&self) -> &nvbit_sys::nvbit::Instr {
+        unsafe { &*self.inner as &nvbit_sys::nvbit::Instr }
     }
 }
 
 impl<'a> Instruction<'a> {
     #[inline]
     #[must_use]
-    pub fn new(instr: *mut nvbit::Instr) -> Self {
+    pub fn new(instr: *mut nvbit_sys::nvbit::Instr) -> Self {
         Self {
             inner: instr,
             func: PhantomData,
@@ -276,19 +277,19 @@ impl<'a> Instruction<'a> {
 
     #[inline]
     #[must_use]
-    pub fn as_ptr(&self) -> *const nvbit::Instr {
+    pub fn as_ptr(&self) -> *const nvbit_sys::nvbit::Instr {
         self.inner as *const _
     }
 
     #[inline]
     #[must_use]
-    pub fn as_mut_ptr(&mut self) -> *mut nvbit::Instr {
+    pub fn as_mut_ptr(&mut self) -> *mut nvbit_sys::nvbit::Instr {
         self.inner
     }
 
     #[inline]
     #[must_use]
-    pub fn pin_mut(&mut self) -> Pin<&mut nvbit::Instr> {
+    pub fn pin_mut(&mut self) -> Pin<&mut nvbit_sys::nvbit::Instr> {
         unsafe { Pin::new_unchecked(self.as_mut()) }
     }
 

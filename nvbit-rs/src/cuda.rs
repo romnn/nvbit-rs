@@ -24,7 +24,7 @@ impl Device {
 /// but not for interacting with the context.
 #[derive(PartialEq, Eq, Hash, Debug, serde::Serialize)]
 pub struct ContextHandle<'a> {
-    #[serde(serialize_with = "crate::to_raw_ptr")]
+    #[serde(serialize_with = "crate::ser::to_raw_ptr")]
     inner: nvbit_sys::CUcontext,
     module: PhantomData<&'a ()>,
 }
@@ -36,7 +36,7 @@ unsafe impl<'a> Sync for ContextHandle<'a> {}
 #[repr(transparent)]
 #[derive(PartialEq, Eq, Hash, Debug, serde::Serialize)]
 pub struct Context<'a> {
-    #[serde(serialize_with = "crate::to_raw_ptr")]
+    #[serde(serialize_with = "crate::ser::to_raw_ptr")]
     inner: nvbit_sys::CUcontext,
     module: PhantomData<&'a ()>,
 }
@@ -84,7 +84,7 @@ impl<'a> Context<'a> {
 /// but not for interacting with the context.
 #[derive(PartialEq, Eq, Hash, Debug, serde::Serialize)]
 pub struct FunctionHandle<'a> {
-    #[serde(serialize_with = "crate::to_raw_ptr")]
+    #[serde(serialize_with = "crate::ser::to_raw_ptr")]
     inner: nvbit_sys::CUfunction,
     module: PhantomData<&'a ()>,
 }
@@ -95,7 +95,7 @@ unsafe impl<'a> Sync for FunctionHandle<'a> {}
 #[repr(transparent)]
 #[derive(PartialEq, Eq, Hash, Debug, Clone, serde::Serialize)]
 pub struct Stream<'a> {
-    #[serde(serialize_with = "crate::to_raw_ptr")]
+    #[serde(serialize_with = "crate::ser::to_raw_ptr")]
     inner: nvbit_sys::CUstream,
     ctx: PhantomData<Context<'a>>,
 }
@@ -130,7 +130,7 @@ impl<'a> Stream<'a> {
 #[repr(transparent)]
 #[derive(PartialEq, Eq, Hash, Debug, Clone, serde::Serialize)]
 pub struct Function<'a> {
-    #[serde(serialize_with = "crate::to_raw_ptr")]
+    #[serde(serialize_with = "crate::ser::to_raw_ptr")]
     inner: nvbit_sys::CUfunction,
     ctx: PhantomData<Context<'a>>,
 }
@@ -315,9 +315,9 @@ pub enum EventParams<'a> {
         block: Dim,
         shared_mem_bytes: u32,
         h_stream: Stream<'a>,
-        #[serde(serialize_with = "crate::to_raw_ptr")]
+        #[serde(serialize_with = "crate::ser::to_raw_ptr")]
         kernel_params: *mut *mut ffi::c_void,
-        #[serde(serialize_with = "crate::to_raw_ptr")]
+        #[serde(serialize_with = "crate::ser::to_raw_ptr")]
         extra: *mut *mut ffi::c_void,
     },
     MemFree {
@@ -329,7 +329,7 @@ pub enum EventParams<'a> {
     },
     MemCopyHostToDevice {
         dest_device: Device,
-        #[serde(serialize_with = "crate::to_raw_ptr")]
+        #[serde(serialize_with = "crate::ser::to_raw_ptr")]
         src_host: *const ffi::c_void,
         bytes: u32,
     },

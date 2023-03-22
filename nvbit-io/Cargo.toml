@@ -1,0 +1,45 @@
+[package]
+name = "nvbit-io"
+version = "0.0.16"
+edition = "2021"
+publish = true
+authors = ["romnn <contact@romnn.com>"]
+description = "NVIDIA NVBIT streaming encoder and decoder implementations using serde"
+license-file = "../LICENSE"
+readme = "../README.md"
+documentation = "https://docs.rs/nvbit-io"
+homepage = "https://github.com/romnn/nvbit-rs"
+repository = "https://github.com/romnn/nvbit-rs"
+categories = [
+  "api-bindings",
+  "development-tools::profiling",
+  "os::unix-apis",
+]
+keywords = [
+  "nvbit",
+  "profiling",
+  "gpgpu",
+  "nvidia",
+  "ffi",
+]
+exclude = []
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+rustc-args = ["--cfg", "docsrs"]
+
+[package.metadata.cargo-feature-combinations]
+denylist = ["default"]
+
+[dependencies]
+# nvbit-sys = { path = "../nvbit-sys" }
+# cxx = "1.0"
+# thiserror = "1"
+serde = { version = "1", features = ["derive"] }
+
+
+[dev-dependencies]
+anyhow = "1"
+serde_json = "1"
+rmp-serde = "1"

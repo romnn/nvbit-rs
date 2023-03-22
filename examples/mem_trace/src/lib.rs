@@ -168,7 +168,7 @@ impl Instrumentor<'static> {
         );
         let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
         let mut serializer = serde_json::Serializer::with_formatter(&mut file, formatter);
-        let mut encoder = nvbit_rs::Encoder::new(&mut serializer).unwrap();
+        let mut encoder = nvbit_io::Encoder::new(&mut serializer).unwrap();
 
         // start the thread here
         let mut packet_count = 0;
