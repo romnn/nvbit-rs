@@ -57,8 +57,8 @@ struct MemAccessTraceEntry<'a> {
     pub instr_opcode: &'a str,
     pub instr_offset: u32,
     pub instr_idx: u32,
-    pub instr_predicate: nvbit_rs::Predicate,
-    pub instr_mem_space: nvbit_rs::MemorySpace,
+    pub instr_predicate: model::Predicate,
+    pub instr_mem_space: model::MemorySpace,
     pub instr_is_load: bool,
     pub instr_is_store: bool,
     pub instr_is_extended: bool,
@@ -194,12 +194,12 @@ impl Instrumentor<'static> {
                 y: packet.cta_id_y.unsigned_abs(),
                 z: packet.cta_id_z.unsigned_abs(),
             };
-            let instr_predicate = nvbit_rs::Predicate {
+            let instr_predicate = model::Predicate {
                 num: packet.instr_predicate_num,
                 is_neg: packet.instr_predicate_is_neg,
                 is_uniform: packet.instr_predicate_is_uniform,
             };
-            let instr_mem_space: nvbit_rs::MemorySpace = unsafe {
+            let instr_mem_space: model::MemorySpace = unsafe {
                 let variant = u8::try_from(packet.instr_mem_space).unwrap();
                 std::mem::transmute(variant)
             };
@@ -327,8 +327,8 @@ impl<'c> Instrumentor<'c> {
         // iterate on the operands
         for operand in instr.operands().collect::<Vec<_>>() {
             // println!("operand kind: {:?}", &operand.kind());
-            if let nvbit_rs::OperandKind::MemRef { .. } = operand.kind() {
-                instr.insert_call("instrument_inst", nvbit_rs::InsertionPoint::Before);
+            if let model::OperandKind::MemRef { .. } = operand.kind() {
+                instr.insert_call("instrument_inst", model::InsertionPoint::Before);
                 let mut pchannel_dev_lock = self.dev_channel.lock().unwrap();
                 let predicate = instr.predicate().unwrap_or_default();
                 let inst_args = Args {
@@ -371,7 +371,7 @@ impl<'c> Instrumentor<'c> {
                 if cnt < self.instr_begin_interval || cnt >= self.instr_end_interval {
                     continue;
                 }
-                if let nvbit_rs::MemorySpace::None | nvbit_rs::MemorySpace::Constant =
+                if let model::MemorySpace::None | model::MemorySpace::Constant =
                     instr.memory_space()
                 {
                     continue;

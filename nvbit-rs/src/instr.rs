@@ -1,81 +1,11 @@
-use nvbit_sys::bindings;
-use serde::{Deserialize, Serialize};
+use nvbit_sys::{bindings, model};
 use std::marker::PhantomData;
 use std::{ffi, fmt, pin::Pin};
 
-#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum RegisterModifier {
-    None = 0,
-    X1 = 1,
-    X4 = 2,
-    X8 = 3,
-    X16 = 4,
-    U32 = 5,
-    U64 = 6,
-}
-
-impl From<bindings::InstrType_RegModifierType> for RegisterModifier {
-    #[inline]
-    #[must_use]
-    fn from(mem_space: bindings::InstrType_RegModifierType) -> Self {
-        use bindings::InstrType_RegModifierType as RMT;
-        match mem_space {
-            RMT::NO_MOD => RegisterModifier::None,
-            RMT::X1 => RegisterModifier::X1,
-            RMT::X4 => RegisterModifier::X4,
-            RMT::X8 => RegisterModifier::X8,
-            RMT::X16 => RegisterModifier::X16,
-            RMT::U32 => RegisterModifier::U32,
-            RMT::U64 => RegisterModifier::U64,
-        }
-    }
-}
-
-/// An instruction operand.
-#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub enum OperandKind {
-    ImmutableUint64 {
-        value: u64,
-    },
-    ImmutableDouble {
-        value: f64,
-    },
-    Register {
-        num: i32,
-        prop: String,
-    },
-    Predicate {
-        num: i32,
-    },
-    // URegister {},
-    // UPredicate {},
-    CBank {
-        id: i32,
-        has_imm_offset: bool,
-        imm_offset: i32,
-        has_reg_offset: bool,
-        reg_offset: i32,
-    },
-    MemRef {
-        has_ra: bool,
-        ra_num: i32,
-        ra_mod: RegisterModifier,
-        has_ur: bool,
-        ur_num: i32,
-        ur_mod: RegisterModifier,
-        has_imm: bool,
-        imm: i32,
-    },
-    Generic {
-        array: String,
-    },
-}
-
 /// An instruction operand.
 #[repr(transparent)]
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct Operand<'a> {
-    #[serde(serialize_with = "crate::to_raw_ptr")]
     inner: *const nvbit_sys::nvbit::operand_t,
     instr: PhantomData<Instruction<'a>>,
 }
@@ -83,8 +13,10 @@ pub struct Operand<'a> {
 impl<'a> Operand<'a> {
     #[inline]
     #[must_use]
-    pub fn kind(&self) -> OperandKind {
+    pub fn kind(&self) -> model::OperandKind {
         use bindings::InstrType_OperandType as OPT;
+        use model::OperandKind;
+
         let operand = unsafe { *self.inner };
         match operand.type_ {
             OPT::IMM_UINT64 => OperandKind::ImmutableUint64 {
@@ -167,55 +99,10 @@ impl<'a> Operand<'a> {
     }
 }
 
-/// Identifier of GPU memory space.
-#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
-pub enum MemorySpace {
-    None = 0,
-    Local = 1,
-    Generic = 2,
-    Global = 3,
-    Shared = 4,
-    Constant = 5,
-    GlobalToShared = 6,
-    Surface = 7,
-    Texture = 8,
-}
-
-impl From<bindings::InstrType_MemorySpace> for MemorySpace {
-    #[inline]
-    #[must_use]
-    fn from(mem_space: bindings::InstrType_MemorySpace) -> Self {
-        use bindings::InstrType_MemorySpace as MS;
-        match mem_space {
-            MS::NONE => MemorySpace::None,
-            MS::LOCAL => MemorySpace::Local,
-            MS::GENERIC => MemorySpace::Generic,
-            MS::GLOBAL => MemorySpace::Global,
-            MS::SHARED => MemorySpace::Shared,
-            MS::CONSTANT => MemorySpace::Constant,
-            MS::GLOBAL_TO_SHARED => MemorySpace::GlobalToShared,
-            MS::SURFACE => MemorySpace::Surface,
-            MS::TEXTURE => MemorySpace::Texture,
-        }
-    }
-}
-
-/// An instruction operand predicate.
-#[derive(Default, PartialEq, Eq, Hash, Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct Predicate {
-    /// predicate number
-    pub num: std::ffi::c_int,
-    /// whether predicate is negated (i.e. @!P0).
-    pub is_neg: bool,
-    /// whether predicate is uniform predicate (e.g., @UP0).
-    pub is_uniform: bool,
-}
-
 /// An instruction.
 #[repr(transparent)]
-#[derive(PartialEq, Eq, Hash, serde::Serialize)]
+#[derive(PartialEq, Eq, Hash)]
 pub struct Instruction<'a> {
-    #[serde(serialize_with = "crate::to_raw_ptr")]
     inner: *mut nvbit_sys::nvbit::Instr,
     func: PhantomData<super::Function<'a>>,
 }
@@ -322,9 +209,9 @@ impl<'a> Instruction<'a> {
     /// Returns the instruction predicate.
     #[inline]
     #[must_use]
-    pub fn predicate(&mut self) -> Option<Predicate> {
+    pub fn predicate(&mut self) -> Option<model::Predicate> {
         if self.pin_mut().hasPred() {
-            Some(Predicate {
+            Some(model::Predicate {
                 num: self.pin_mut().getPredNum(),
                 is_neg: self.pin_mut().isPredNeg(),
                 is_uniform: self.pin_mut().isPredUniform(),
@@ -361,7 +248,7 @@ impl<'a> Instruction<'a> {
     /// memory space type
     #[inline]
     #[must_use]
-    pub fn memory_space(&mut self) -> MemorySpace {
+    pub fn memory_space(&mut self) -> model::MemorySpace {
         self.pin_mut().getMemorySpace().into()
     }
 
@@ -445,37 +332,6 @@ impl<'a> Instruction<'a> {
     }
 }
 
-/// Insertion point where the instrumentation for an instruction should be inserted
-#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
-pub enum InsertionPoint {
-    Before,
-    After,
-}
-
-impl From<InsertionPoint> for bindings::ipoint_t {
-    #[inline]
-    #[must_use]
-    fn from(point: InsertionPoint) -> bindings::ipoint_t {
-        use bindings::ipoint_t as IP;
-        match point {
-            InsertionPoint::Before => IP::IPOINT_BEFORE,
-            InsertionPoint::After => IP::IPOINT_AFTER,
-        }
-    }
-}
-
-impl From<bindings::ipoint_t> for InsertionPoint {
-    #[inline]
-    #[must_use]
-    fn from(point: bindings::ipoint_t) -> Self {
-        use bindings::ipoint_t as IP;
-        match point {
-            IP::IPOINT_BEFORE => Self::Before,
-            IP::IPOINT_AFTER => Self::After,
-        }
-    }
-}
-
 impl<'a> Instruction<'a> {
     /// This function inserts a device function call named `"dev_func_name"`,
     /// before or after this instruction.
@@ -500,7 +356,7 @@ impl<'a> Instruction<'a> {
     /// Panics if the device function name is not a valid C string,
     /// e.g. contains an internal 0 byte.
     #[inline]
-    pub fn insert_call(&mut self, dev_func_name: impl AsRef<str>, point: InsertionPoint) {
+    pub fn insert_call(&mut self, dev_func_name: impl AsRef<str>, point: model::InsertionPoint) {
         let func_name = ffi::CString::new(dev_func_name.as_ref()).unwrap();
         unsafe {
             bindings::nvbit_insert_call(self.as_ptr().cast(), func_name.as_ptr(), point.into());

@@ -191,7 +191,7 @@ impl<'c> Instrumentor<'c> {
             opcode_to_id_map[opcode]
         };
 
-        instr.insert_call("instrument_inst", nvbit_rs::InsertionPoint::Before);
+        instr.insert_call("instrument_inst", model::InsertionPoint::Before);
 
         let mut inst_args = instrument_inst::Args {
             opcode_id: opcode_id.try_into().unwrap(),
@@ -211,10 +211,10 @@ impl<'c> Instrumentor<'c> {
         // (e.g. store and RED)
         if let Some(first_operand) = instr.operand(0) {
             match first_operand.kind() {
-                nvbit_rs::OperandKind::Register { num, .. } => {
+                model::OperandKind::Register { num, .. } => {
                     dst_oprd = num;
                 }
-                nvbit_rs::OperandKind::MemRef { ra_num, .. } => {
+                model::OperandKind::MemRef { ra_num, .. } => {
                     src_oprd[0] = ra_num;
                     mem_oper_idx = 0;
                     src_num += 1;
@@ -231,7 +231,7 @@ impl<'c> Instrumentor<'c> {
             (1..common::MAX_SRC.min(num_operands)).filter_map(|i| instr.operand(i));
         for operand in remaining_operands {
             match operand.kind() {
-                nvbit_rs::OperandKind::MemRef { ra_num, .. } => {
+                model::OperandKind::MemRef { ra_num, .. } => {
                     // mem is found
                     assert!(src_num < common::MAX_SRC);
                     src_oprd[src_num] = ra_num;
@@ -240,7 +240,7 @@ impl<'c> Instrumentor<'c> {
                     assert!(mem_oper_idx == -1); // ensure one memory operand per inst
                     mem_oper_idx += 1;
                 }
-                nvbit_rs::OperandKind::Register { num, .. } => {
+                model::OperandKind::Register { num, .. } => {
                     // reg is found
                     assert!(src_num < common::MAX_SRC);
                     src_oprd[src_num] = num;

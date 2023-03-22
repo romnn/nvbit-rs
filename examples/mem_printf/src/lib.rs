@@ -2,6 +2,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 use lazy_static::lazy_static;
+use nvbit_rs::model;
 use std::collections::{HashMap, HashSet};
 use std::ffi;
 use std::sync::{Arc, Mutex, RwLock};
@@ -108,8 +109,8 @@ impl<'c> Instrumentor<'c> {
 
         // iterate on the operands
         for operand in instr.operands().collect::<Vec<_>>() {
-            if let nvbit_rs::OperandKind::MemRef { .. } = operand.kind() {
-                instr.insert_call("instrument_inst", nvbit_rs::InsertionPoint::Before);
+            if let model::OperandKind::MemRef { .. } = operand.kind() {
+                instr.insert_call("instrument_inst", model::InsertionPoint::Before);
                 let inst_args = Args {
                     opcode_id: opcode_id.try_into().unwrap(),
                     mref_idx,
@@ -140,7 +141,7 @@ impl<'c> Instrumentor<'c> {
                 if cnt < self.instr_begin_interval || cnt >= self.instr_end_interval {
                     continue;
                 }
-                if let nvbit_rs::MemorySpace::None | nvbit_rs::MemorySpace::Constant =
+                if let model::MemorySpace::None | model::MemorySpace::Constant =
                     instr.memory_space()
                 {
                     continue;
