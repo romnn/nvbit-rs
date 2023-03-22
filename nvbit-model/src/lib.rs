@@ -1,3 +1,6 @@
+pub mod dim;
+pub use dim::*;
+
 use serde::{Deserialize, Serialize};
 
 /// A CUDA device.
@@ -30,20 +33,6 @@ pub enum FunctionAttribute {
     MaxDynamicSharedSizeBytes,
     PreferredSharedMemoryCarveout,
     Max,
-}
-
-/// 3-dimensional coordinates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct Dim {
-    pub x: u32,
-    pub y: u32,
-    pub z: u32,
-}
-
-impl std::fmt::Display for Dim {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "({},{},{})", self.x, self.y, self.z)
-    }
 }
 
 /// NVBIT Register modifiers.
