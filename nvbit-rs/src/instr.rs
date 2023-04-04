@@ -100,14 +100,14 @@ impl<'a> Operand<'a> {
 }
 
 /// An instruction.
-#[repr(transparent)]
+// #[repr(transparent)]
 #[derive(PartialEq, Eq, Hash)]
-pub struct Instruction<'a> {
+pub struct Instruction<'f> {
     inner: *mut nvbit_sys::nvbit::Instr,
-    func: PhantomData<super::Function<'a>>,
+    func: super::Function<'f>,
 }
 
-impl<'a> fmt::Display for Instruction<'a> {
+impl<'f> fmt::Display for Instruction<'f> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // accesses formally require a mutable reference, but
@@ -120,7 +120,7 @@ impl<'a> fmt::Display for Instruction<'a> {
     }
 }
 
-impl<'a> fmt::Debug for Instruction<'a> {
+impl<'f> fmt::Debug for Instruction<'f> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // accesses formally require a mutable reference, but
@@ -136,7 +136,7 @@ impl<'a> fmt::Debug for Instruction<'a> {
     }
 }
 
-impl<'a> AsMut<nvbit_sys::nvbit::Instr> for Instruction<'a> {
+impl<'f> AsMut<nvbit_sys::nvbit::Instr> for Instruction<'f> {
     #[inline]
     #[must_use]
     fn as_mut(&mut self) -> &mut nvbit_sys::nvbit::Instr {
@@ -144,7 +144,7 @@ impl<'a> AsMut<nvbit_sys::nvbit::Instr> for Instruction<'a> {
     }
 }
 
-impl<'a> AsRef<nvbit_sys::nvbit::Instr> for Instruction<'a> {
+impl<'f> AsRef<nvbit_sys::nvbit::Instr> for Instruction<'f> {
     #[inline]
     #[must_use]
     fn as_ref(&self) -> &nvbit_sys::nvbit::Instr {
@@ -152,14 +152,17 @@ impl<'a> AsRef<nvbit_sys::nvbit::Instr> for Instruction<'a> {
     }
 }
 
-impl<'a> Instruction<'a> {
+impl<'f> Instruction<'f> {
     #[inline]
     #[must_use]
-    pub fn new(instr: *mut nvbit_sys::nvbit::Instr) -> Self {
-        Self {
-            inner: instr,
-            func: PhantomData,
-        }
+    pub fn new(func: super::Function<'f>, instr: *mut nvbit_sys::nvbit::Instr) -> Self {
+        Self { inner: instr, func }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn func(&self) -> super::FunctionHandle<'f> {
+        self.func.handle()
     }
 
     #[inline]
@@ -180,10 +183,20 @@ impl<'a> Instruction<'a> {
         unsafe { Pin::new_unchecked(self.as_mut()) }
     }
 
+    /// Returns line info of the instruction in the source.
+    ///
+    /// # Note
+    /// Note: binary must be compiled with --generate-line-info (-lineinfo).
+    #[inline]
+    #[must_use]
+    pub fn line_info(&mut self, ctx: &mut super::Context<'_>) -> Option<super::LineInfo> {
+        super::get_line_info(ctx, &mut self.func, 0)
+    }
+
     /// Returns string containing the SASS, i.e. `IMAD.WIDE R8, R8, R9`.
     #[inline]
     #[must_use]
-    pub fn sass(&mut self) -> Option<&'a str> {
+    pub fn sass(&mut self) -> Option<&'f str> {
         let sass = self.pin_mut().getSass();
         if sass.is_null() {
             None
@@ -224,7 +237,7 @@ impl<'a> Instruction<'a> {
     /// full opcode of the instruction (i.e. IMAD.WIDE )
     #[inline]
     #[must_use]
-    pub fn opcode(&mut self) -> Option<&'a str> {
+    pub fn opcode(&mut self) -> Option<&'f str> {
         let opcode = self.pin_mut().getOpcode();
         if opcode.is_null() {
             None
@@ -236,7 +249,7 @@ impl<'a> Instruction<'a> {
     /// short opcode of the instruction (i.e. IMAD.WIDE returns IMAD)
     #[inline]
     #[must_use]
-    pub fn opcode_short(&mut self) -> Option<&'a str> {
+    pub fn opcode_short(&mut self) -> Option<&'f str> {
         let opcode = self.pin_mut().getOpcodeShort();
         if opcode.is_null() {
             None
@@ -282,7 +295,7 @@ impl<'a> Instruction<'a> {
 
     /// number of operands
     #[inline]
-    pub fn operands(&mut self) -> impl Iterator<Item = Operand<'a>> + '_ {
+    pub fn operands(&mut self) -> impl Iterator<Item = Operand<'f>> + '_ {
         let num_operands = self.num_operands();
         (0..num_operands).filter_map(|i| self.operand(i))
     }
@@ -297,7 +310,7 @@ impl<'a> Instruction<'a> {
     /// operand at index
     #[inline]
     #[must_use]
-    pub fn operand(&mut self, idx: usize) -> Option<Operand<'a>> {
+    pub fn operand(&mut self, idx: usize) -> Option<Operand<'f>> {
         if idx >= self.num_operands() {
             // out of bounds
             return None;
@@ -332,7 +345,7 @@ impl<'a> Instruction<'a> {
     }
 }
 
-impl<'a> Instruction<'a> {
+impl<'f> Instruction<'f> {
     /// This function inserts a device function call named `"dev_func_name"`,
     /// before or after this instruction.
     ///

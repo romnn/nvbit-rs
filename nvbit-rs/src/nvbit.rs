@@ -69,7 +69,7 @@ pub fn get_instrs<'f>(ctx: &mut Context<'_>, func: &mut Function<'f>) -> Vec<Ins
     instructions
         .pin_mut()
         .iter_mut()
-        .map(|mut i| Instruction::new(i.as_mut_ptr()))
+        .map(|mut i| Instruction::new(func.clone(), i.as_mut_ptr()))
         .collect()
 }
 
@@ -100,9 +100,13 @@ pub struct LineInfo {
 
 /// Get line information for a particular instruction offset if available.
 ///
-/// Note: binary must be compiled with --generate-line-info (-lineinfo)
+/// Note: binary must be compiled with --generate-line-info (-lineinfo).
 #[must_use]
-pub fn get_line_info(ctx: &mut Context<'_>, func: &mut Function<'_>, offset: u32) -> LineInfo {
+pub fn get_line_info(
+    ctx: &mut Context<'_>,
+    func: &mut Function<'_>,
+    offset: u32,
+) -> Option<LineInfo> {
     use ffi::CStr;
     use std::mem::MaybeUninit;
 
@@ -126,13 +130,14 @@ pub fn get_line_info(ctx: &mut Context<'_>, func: &mut Function<'_>, offset: u32
         let dir_name = unsafe { CStr::from_ptr(dir_name.assume_init()) }
             .to_string_lossy()
             .to_string();
-        LineInfo {
+        Some(LineInfo {
             line: unsafe { line.assume_init() },
             file_name,
             dir_name,
-        }
+        })
     } else {
-        LineInfo::default()
+        None
+        // LineInfo::default()
     }
 }
 

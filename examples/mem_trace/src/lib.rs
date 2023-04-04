@@ -54,6 +54,8 @@ struct MemAccessTraceEntry<'a> {
     pub grid_launch_id: u64,
     pub cta_id: model::Dim,
     pub warp_id: u32,
+    // pub instr_line: usize,
+    // pub instr_file_name: &'a str,
     pub instr_opcode: &'a str,
     pub instr_offset: u32,
     pub instr_idx: u32,
@@ -376,6 +378,8 @@ impl<'c> Instrumentor<'c> {
                 {
                     continue;
                 }
+
+                dbg!(instr.line_info(&mut self.ctx.lock().unwrap()));
 
                 self.instrument_instruction(instr);
             }
