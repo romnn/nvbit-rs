@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 /// A CUDA device.
 #[derive(PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
-pub struct Device(pub u32);
+pub struct Device(pub u64);
 
 /// A CUDA context.
 #[derive(PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]

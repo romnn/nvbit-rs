@@ -65,7 +65,8 @@ fn generate_nvbit_bindings<P: AsRef<Path>>(includes: impl IntoIterator<Item = P>
         .derive_default(true)
         .derive_hash(true)
         .derive_ord(true)
-        .size_t_is_usize(true)
+        // .size_t_is_usize(true)
+        .size_t_is_usize(false)
         .rustfmt_bindings(true)
         .default_enum_style(bindgen::EnumVariation::Rust {
             non_exhaustive: false,

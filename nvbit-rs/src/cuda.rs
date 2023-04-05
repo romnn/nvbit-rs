@@ -3,10 +3,15 @@ use std::ffi;
 use std::marker::PhantomData;
 
 /// Opaque handle to a CUDA `CUdeviceptr_v1` device.
+///
+/// Wraps either `nvbit_sys::CUdeviceptr_v1` (`u32`)
+/// or `nvbit_sys::CUdeviceptr_v2` (`u64`) - both of which are
+/// upcasted to `u64`.
 #[repr(transparent)]
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct Device {
-    inner: nvbit_sys::CUdeviceptr_v1,
+    inner: u64,
+    // inner: nvbit_sys::CUdeviceptr_v2,
 }
 
 impl From<&Device> for model::Device {
@@ -20,13 +25,25 @@ impl Device {
     /// Creates a new `Device` wrapping a `CUdeviceptr_v1`.
     #[inline]
     #[must_use]
-    pub fn wrap(inner: nvbit_sys::CUdeviceptr_v1) -> Self {
-        Self { inner }
+    pub fn wrap(ptr: impl Into<u64>) -> Self {
+        Self { inner: ptr.into() }
     }
 
     #[inline]
     #[must_use]
-    pub fn as_ptr(&self) -> nvbit_sys::CUdeviceptr_v1 {
+    pub fn as_ptr(&self) -> nvbit_sys::CUdeviceptr_v2 {
+        self.as_ptr_v2()
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn as_ptr_v1(&self) -> nvbit_sys::CUdeviceptr_v1 {
+        self.inner.try_into().unwrap()
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn as_ptr_v2(&self) -> nvbit_sys::CUdeviceptr_v2 {
         self.inner
     }
 }
@@ -334,12 +351,17 @@ pub enum EventParams<'a> {
     },
     MemAlloc {
         device_ptr: u64,
-        bytes: usize,
+        num_bytes: u64,
     },
     MemCopyHostToDevice {
         dest_device: Device,
         src_host: *const ffi::c_void,
-        bytes: u32,
+        num_bytes: u64,
+    },
+    MemCopyDeviceToHost {
+        src_device: Device,
+        dest_host: *const ffi::c_void,
+        num_bytes: u64,
     },
     ProfilerStart,
     ProfilerStop,
@@ -349,23 +371,37 @@ impl<'a> EventParams<'a> {
     pub fn new(cbid: nvbit_sys::nvbit_api_cuda_t, params: *mut ffi::c_void) -> Option<Self> {
         use nvbit_sys::nvbit_api_cuda_t as cuda_t;
         match cbid {
-            cuda_t::API_CUDA_cuMemFree | cuda_t::API_CUDA_cuMemFree_v2 => {
-                let p = unsafe { &mut *params.cast::<nvbit_sys::cuMemFree_v2_params>() };
+            cuda_t::API_CUDA_cuMemFree => {
+                let p: nvbit_sys::cuMemFree_params = unsafe { *params.cast() };
+                Some(Self::MemFree {
+                    device_ptr: u64::from(p.dptr),
+                })
+            }
+            cuda_t::API_CUDA_cuMemFree_v2 => {
+                let p: nvbit_sys::cuMemFree_v2_params = unsafe { *params.cast() };
                 Some(Self::MemFree { device_ptr: p.dptr })
             }
             cuda_t::API_CUDA_cuMemAlloc | cuda_t::API_CUDA_cuMemAlloc_v2 => {
-                let p = unsafe { &mut *params.cast::<nvbit_sys::cuMemAlloc_v2_params>() };
+                let p: nvbit_sys::cuMemAlloc_v2_params = unsafe { *params.cast() };
                 Some(Self::MemAlloc {
                     device_ptr: unsafe { *p.dptr },
-                    bytes: p.bytesize,
+                    num_bytes: p.bytesize,
                 })
             }
-            cuda_t::API_CUDA_cuMemcpyHtoD_v2 => {
-                let p = unsafe { &mut *params.cast::<nvbit_sys::cuMemcpyHtoD_params>() };
+            cuda_t::API_CUDA_cuMemcpyDtoH | cuda_t::API_CUDA_cuMemcpyDtoH_v2 => {
+                let p: nvbit_sys::cuMemcpyDtoH_v2_params_st = unsafe { *params.cast() };
+                Some(Self::MemCopyDeviceToHost {
+                    src_device: Device::wrap(p.srcDevice),
+                    dest_host: p.dstHost,
+                    num_bytes: p.ByteCount,
+                })
+            }
+            cuda_t::API_CUDA_cuMemcpyHtoD | cuda_t::API_CUDA_cuMemcpyHtoD_v2 => {
+                let p: nvbit_sys::cuMemcpyHtoD_v2_params = unsafe { *params.cast() };
                 Some(Self::MemCopyHostToDevice {
                     dest_device: Device::wrap(p.dstDevice),
                     src_host: p.srcHost,
-                    bytes: p.ByteCount,
+                    num_bytes: p.ByteCount,
                 })
             }
             cuda_t::API_CUDA_cuProfilerStart => Some(Self::ProfilerStart),
@@ -373,13 +409,13 @@ impl<'a> EventParams<'a> {
             cuda_t::API_CUDA_cuLaunch
             | cuda_t::API_CUDA_cuLaunchGrid
             | cuda_t::API_CUDA_cuLaunchGridAsync => {
-                let p = unsafe { &mut *params.cast::<nvbit_sys::cuLaunch_params>() };
+                let p: nvbit_sys::cuLaunch_params = unsafe { *params.cast() };
                 Some(Self::Launch {
                     func: Function::wrap(p.f),
                 })
             }
             cuda_t::API_CUDA_cuLaunchKernel_ptsz | cuda_t::API_CUDA_cuLaunchKernel => {
-                let p = unsafe { &mut *params.cast::<nvbit_sys::cuLaunchKernel_params>() };
+                let p: nvbit_sys::cuLaunchKernel_params = unsafe { *params.cast() };
                 Some(Self::KernelLaunch {
                     func: Function::wrap(p.f),
                     grid: model::Dim {
