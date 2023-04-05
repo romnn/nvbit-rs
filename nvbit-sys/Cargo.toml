@@ -1,6 +1,6 @@
 [package]
 name = "nvbit-sys"
-version = "0.0.20"
+version = "0.0.21"
 edition = "2021"
 publish = true
 links = "nvbit"
