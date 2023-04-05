@@ -381,14 +381,29 @@ impl<'a> EventParams<'a> {
                 let p: nvbit_sys::cuMemFree_v2_params = unsafe { *params.cast() };
                 Some(Self::MemFree { device_ptr: p.dptr })
             }
-            cuda_t::API_CUDA_cuMemAlloc | cuda_t::API_CUDA_cuMemAlloc_v2 => {
+            cuda_t::API_CUDA_cuMemAlloc => {
+                let p: nvbit_sys::cuMemAlloc_params = unsafe { *params.cast() };
+                Some(Self::MemAlloc {
+                    device_ptr: u64::from(unsafe { *p.dptr }),
+                    num_bytes: p.bytesize.into(),
+                })
+            }
+            cuda_t::API_CUDA_cuMemAlloc_v2 => {
                 let p: nvbit_sys::cuMemAlloc_v2_params = unsafe { *params.cast() };
                 Some(Self::MemAlloc {
                     device_ptr: unsafe { *p.dptr },
                     num_bytes: p.bytesize,
                 })
             }
-            cuda_t::API_CUDA_cuMemcpyDtoH | cuda_t::API_CUDA_cuMemcpyDtoH_v2 => {
+            cuda_t::API_CUDA_cuMemcpyDtoH => {
+                let p: nvbit_sys::cuMemcpyDtoH_params_st = unsafe { *params.cast() };
+                Some(Self::MemCopyDeviceToHost {
+                    src_device: Device::wrap(p.srcDevice),
+                    dest_host: p.dstHost,
+                    num_bytes: p.ByteCount.into(),
+                })
+            }
+            cuda_t::API_CUDA_cuMemcpyDtoH_v2 => {
                 let p: nvbit_sys::cuMemcpyDtoH_v2_params_st = unsafe { *params.cast() };
                 Some(Self::MemCopyDeviceToHost {
                     src_device: Device::wrap(p.srcDevice),
@@ -396,7 +411,15 @@ impl<'a> EventParams<'a> {
                     num_bytes: p.ByteCount,
                 })
             }
-            cuda_t::API_CUDA_cuMemcpyHtoD | cuda_t::API_CUDA_cuMemcpyHtoD_v2 => {
+            cuda_t::API_CUDA_cuMemcpyHtoD => {
+                let p: nvbit_sys::cuMemcpyHtoD_params = unsafe { *params.cast() };
+                Some(Self::MemCopyHostToDevice {
+                    dest_device: Device::wrap(p.dstDevice),
+                    src_host: p.srcHost,
+                    num_bytes: p.ByteCount.into(),
+                })
+            }
+            cuda_t::API_CUDA_cuMemcpyHtoD_v2 => {
                 let p: nvbit_sys::cuMemcpyHtoD_v2_params = unsafe { *params.cast() };
                 Some(Self::MemCopyHostToDevice {
                     dest_device: Device::wrap(p.dstDevice),
