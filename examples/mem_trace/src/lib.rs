@@ -255,10 +255,10 @@ impl<'c> Instrumentor<'c> {
         let params = nvbit_rs::EventParams::new(cbid, params);
 
         match params {
-            Some(nvbit_rs::EventParams::MemAlloc { device_ptr, bytes }) => {
+            Some(nvbit_rs::EventParams::MemAlloc { device_ptr, num_bytes }) => {
                 if is_exit {
                     // addresses are only valid on exit
-                    println!("allocated {bytes} bytes at {device_ptr:#06x} ({device_ptr})");
+                    println!("allocated {num_bytes} bytes at {device_ptr:#06x} ({device_ptr})");
                 }
             }
             Some(nvbit_rs::EventParams::KernelLaunch {
