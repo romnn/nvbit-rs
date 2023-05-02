@@ -53,6 +53,15 @@ pub struct Iter {
     current: u64,
 }
 
+impl Iter {
+    /// Returns the unique thread id in the block
+    #[must_use]
+    #[inline]
+    pub fn id(&self) -> u64 {
+        self.current
+    }
+}
+
 impl Iterator for Iter {
     type Item = Dim;
 

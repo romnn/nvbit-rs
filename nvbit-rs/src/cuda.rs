@@ -29,18 +29,24 @@ impl Device {
         Self { inner: ptr.into() }
     }
 
+    /// Gets a `nvbit_sys::CUdeviceptr_v2` pointer to the device
     #[inline]
     #[must_use]
     pub fn as_ptr(&self) -> nvbit_sys::CUdeviceptr_v2 {
         self.as_ptr_v2()
     }
 
+    /// Gets a `nvbit_sys::CUdeviceptr_v1` pointer to the device
+    ///
+    /// # Panics
+    /// If the device pointer cannot be represented using a 32bit pointer.
     #[inline]
     #[must_use]
     pub fn as_ptr_v1(&self) -> nvbit_sys::CUdeviceptr_v1 {
         self.inner.try_into().unwrap()
     }
 
+    /// Gets a `nvbit_sys::CUdeviceptr_v2` pointer to the device
     #[inline]
     #[must_use]
     pub fn as_ptr_v2(&self) -> nvbit_sys::CUdeviceptr_v2 {
