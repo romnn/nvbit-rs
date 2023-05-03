@@ -170,11 +170,14 @@ where
     /// If the receiving thread panicked, a [`std::thread::Result`] is returned
     /// containing the boxed parameter given to `panic!`.
     pub fn stop(&mut self) -> std::thread::Result<()> {
-        println!("stopping receiver thread");
-        self.shutdown.store(true, atomic::Ordering::Relaxed);
-        // wait for the receiver thread to complete
         match self.receiver_thread.take() {
-            Some(thread) => thread.join(),
+            Some(thread) => {
+                println!("stopping receiver thread");
+                self.shutdown.store(true, atomic::Ordering::Relaxed);
+
+                // wait for the receiver thread to complete
+                thread.join()
+            }
             _ => Ok(()),
         }
     }

@@ -37,7 +37,8 @@ impl std::ops::Deref for CudaEventName {
 /// Panics if the `nvbit` version string is not a valid UTF8 string.
 #[must_use]
 pub fn version() -> &'static str {
-    std::str::from_utf8(bindings::NVBIT_VERSION).unwrap()
+    let version = unsafe { ffi::CStr::from_bytes_with_nul_unchecked(bindings::NVBIT_VERSION) };
+    version.to_str().unwrap()
 }
 
 /// Get related functions for given `CUfunction`

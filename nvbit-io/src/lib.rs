@@ -2,7 +2,10 @@ use serde::ser::SerializeSeq;
 
 /// An encoder to serialize a stream of packets.
 #[derive(Debug, Clone)]
-pub struct Encoder<Seq> {
+pub struct Encoder<Seq>
+where
+    Seq: SerializeSeq,
+{
     pub seq: Seq,
 }
 
