@@ -14,7 +14,17 @@ impl Dim {
     pub fn size(&self) -> u64 {
         u64::from(self.x) * u64::from(self.y) * u64::from(self.z)
     }
+
+    fn as_tuple(&self) -> (&u32, &u32, &u32) {
+        (&self.x, &self.y, &self.z)
+    }
 }
+
+// impl<'a> AsRef<(&u32, &u32, &u32)> for Dim {
+//     fn as_ref<'a>(&self) -> &(&'a u32, &'a u32, &'a u32) {
+//         &(&self.x, &self.y, &self.z)
+//     }
+// }
 
 impl std::fmt::Display for Dim {
     #[inline]
@@ -43,6 +53,18 @@ impl From<(u32, u32, u32)> for Dim {
     fn from(dim: (u32, u32, u32)) -> Self {
         let (x, y, z) = dim;
         Self { x, y, z }
+    }
+}
+
+impl PartialOrd for Dim {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.as_tuple().partial_cmp(&other.as_tuple())
+    }
+}
+
+impl Ord for Dim {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_tuple().cmp(&other.as_tuple())
     }
 }
 
