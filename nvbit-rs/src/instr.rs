@@ -289,8 +289,8 @@ impl<'f> Instruction<'f> {
     /// size of the instruction
     #[inline]
     #[must_use]
-    pub fn size(&mut self) -> usize {
-        self.pin_mut().getSize().unsigned_abs() as usize
+    pub fn size(&mut self) -> u32 {
+        self.pin_mut().getSize().unsigned_abs()
     }
 
     /// number of operands
