@@ -20,12 +20,6 @@ impl Dim {
     }
 }
 
-// impl<'a> AsRef<(&u32, &u32, &u32)> for Dim {
-//     fn as_ref<'a>(&self) -> &(&'a u32, &'a u32, &'a u32) {
-//         &(&self.x, &self.y, &self.z)
-//     }
-// }
-
 impl std::fmt::Display for Dim {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -69,7 +63,7 @@ impl Ord for Dim {
 }
 
 /// Iterates over 3-dimensional coordinates.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Iter {
     dim: Dim,
     current: u64,
