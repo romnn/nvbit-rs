@@ -1,6 +1,6 @@
 [package]
 name = "nvbit-build"
-version = "0.0.24"
+version = "0.0.25"
 edition = "2021"
 publish = true
 authors = ["romnn <contact@romnn.com>"]
