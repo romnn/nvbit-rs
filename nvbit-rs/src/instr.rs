@@ -27,9 +27,14 @@ impl<'a> Operand<'a> {
             },
             OPT::UREG | OPT::REG => {
                 let reg = unsafe { operand.u.reg };
-                let prop: [u8; 256] = unsafe { std::mem::transmute(reg.prop) };
-                let prop = String::from_utf8_lossy(&prop).to_string();
-                OperandKind::Register { num: reg.num, prop }
+                // transmute from [i8; 256] to [u8; 256]
+                let prop: [i8; 256] = reg.prop;
+                let prop: [u8; 256] = unsafe { std::mem::transmute(prop) };
+                let prop = ffi::CStr::from_bytes_until_nul(&prop).unwrap_or_default();
+                OperandKind::Register {
+                    num: reg.num,
+                    prop: prop.to_string_lossy().to_string(),
+                }
             }
             OPT::UPRED | OPT::PRED => OperandKind::Predicate {
                 num: unsafe { operand.u.pred.num },

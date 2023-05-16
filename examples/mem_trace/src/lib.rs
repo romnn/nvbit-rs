@@ -255,7 +255,10 @@ impl<'c> Instrumentor<'c> {
         let params = nvbit_rs::EventParams::new(cbid, params);
 
         match params {
-            Some(nvbit_rs::EventParams::MemAlloc { device_ptr, num_bytes }) => {
+            Some(nvbit_rs::EventParams::MemAlloc {
+                device_ptr,
+                num_bytes,
+            }) => {
                 if is_exit {
                     // addresses are only valid on exit
                     println!("allocated {num_bytes} bytes at {device_ptr:#06x} ({device_ptr})");
@@ -328,7 +331,8 @@ impl<'c> Instrumentor<'c> {
 
         // iterate on the operands
         for operand in instr.operands().collect::<Vec<_>>() {
-            // println!("operand kind: {:?}", &operand.kind());
+            println!("operand kind: {:?}", &operand.kind());
+
             if let model::OperandKind::MemRef { .. } = operand.kind() {
                 instr.insert_call("instrument_inst", model::InsertionPoint::Before);
                 let mut pchannel_dev_lock = self.dev_channel.lock().unwrap();

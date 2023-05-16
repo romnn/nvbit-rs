@@ -59,14 +59,6 @@ impl IntoCudaResult for model::CudaErrorKind {
     }
 }
 
-// impl IntoCudaResult for bindings::cudaError_enum {
-//     fn into_result(self) -> CudaResult<()> {
-//         use bindings::cudaError_enum as ERR;
-//         match self {
-//         }
-//     }
-// }
-
 impl std::error::Error for CudaError {}
 
 impl std::fmt::Display for CudaError {
@@ -82,6 +74,5 @@ impl std::fmt::Display for CudaError {
             std::ffi::CStr::from_ptr(msg_ptr).to_str().unwrap()
         };
         write!(f, "{msg}")
-        // write!(f, "todo")
     }
 }

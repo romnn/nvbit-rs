@@ -6,6 +6,14 @@
 make -j -B -C test-apps/
 ```
 
+```bash
+# build the mem trace example tracer
+cargo build --release -p mem_trace
+
+# trace a sample application
+LD_PRELOAD=./target/release/libmem_trace.so ./test-apps/vectoradd/vectoradd 100
+```
+
 Done:
 - implement messagepack and json trace dumping
 - that does not work: clean up the nvbit api such that there the context is managed in nvbit-rs and the hooks are just functions
