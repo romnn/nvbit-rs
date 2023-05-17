@@ -50,6 +50,20 @@ impl From<(u32, u32, u32)> for Dim {
     }
 }
 
+impl From<Point> for Dim {
+    #[inline]
+    fn from(p: Point) -> Self {
+        let Point { x, y, z, .. } = p;
+        Self { x, y, z }
+    }
+}
+
+impl PartialEq<Point> for Dim {
+    fn eq(&self, other: &Point) -> bool {
+        self.x == other.x && self.y == other.y && self.z == other.z
+    }
+}
+
 impl PartialOrd for Dim {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.as_tuple().partial_cmp(&other.as_tuple())
@@ -76,6 +90,13 @@ pub struct Point {
     pub y: u32,
     pub z: u32,
     pub bounds: Dim,
+}
+
+impl std::fmt::Display for Point {
+    #[inline]
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "({},{},{})", self.x, self.y, self.z)
+    }
 }
 
 impl Point {
