@@ -27,7 +27,6 @@ impl<'a> Operand<'a> {
             },
             OPT::UREG | OPT::REG => {
                 let reg = unsafe { operand.u.reg };
-                // transmute from [i8; 256] to [u8; 256]
                 let prop: [i8; 256] = reg.prop;
                 let prop: [u8; 256] = unsafe { std::mem::transmute(prop) };
                 let prop = ffi::CStr::from_bytes_until_nul(&prop).unwrap_or_default();
@@ -63,9 +62,10 @@ impl<'a> Operand<'a> {
                 }
             }
             OPT::GENERIC => {
-                let array = unsafe { operand.u.generic.array };
+                let array: [i8; 256] = unsafe { operand.u.generic.array };
                 let array: [u8; 256] = unsafe { std::mem::transmute(array) };
-                let array = String::from_utf8_lossy(&array).to_string();
+                let array = ffi::CStr::from_bytes_until_nul(&array).unwrap_or_default();
+                let array = array.to_string_lossy().to_string();
                 OperandKind::Generic { array }
             }
         }
@@ -74,9 +74,10 @@ impl<'a> Operand<'a> {
     #[inline]
     #[must_use]
     pub fn name(&self) -> String {
-        let name = unsafe { *self.inner }.str_;
+        let name: [i8; 256] = unsafe { *self.inner }.str_;
         let name: [u8; 256] = unsafe { std::mem::transmute(name) };
-        String::from_utf8_lossy(&name).to_string()
+        let name = ffi::CStr::from_bytes_until_nul(&name).unwrap_or_default();
+        name.to_string_lossy().to_string()
     }
 
     #[inline]
