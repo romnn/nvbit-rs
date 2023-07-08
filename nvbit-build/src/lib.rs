@@ -39,6 +39,8 @@ pub struct Build {
     objects: Vec<PathBuf>,
     sources: Vec<PathBuf>,
     instrumentation_sources: Vec<PathBuf>,
+    warnings: bool,
+    warnings_as_errors: bool,
 }
 
 impl Default for Build {
@@ -56,6 +58,8 @@ impl Build {
             objects: Vec::new(),
             sources: Vec::new(),
             instrumentation_sources: Vec::new(),
+            warnings: false,
+            warnings_as_errors: false,
         }
     }
 
@@ -72,6 +76,14 @@ impl Build {
             .iter()
             .map(|d| format!("-I{}", &d.to_string_lossy()))
             .collect();
+
+        let mut compiler_flags = vec!["-Xcompiler", "-fPIC"];
+        if self.warnings {
+            compiler_flags.extend(["-Xcompiler", "-Wall"]);
+        }
+        if self.warnings_as_errors {
+            compiler_flags.extend(["-Xcompiler", "-Werror"]);
+        }
 
         // compile instrumentation functions
         for (i, src) in self.instrumentation_sources.iter().enumerate() {
@@ -90,10 +102,9 @@ impl Build {
                     "-Xptxas",
                     "-astoolspatch",
                     "--keep-device-functions",
-                    "-Xcompiler",
-                    "-fPIC",
-                    "-c",
                 ])
+                .args(&compiler_flags)
+                .arg("-c")
                 .arg(src)
                 .arg("-o")
                 .arg(&*obj.to_string_lossy());
@@ -118,7 +129,8 @@ impl Build {
                 .with_extension("o");
             let mut cmd = Command::new("nvcc");
             cmd.args(&include_args)
-                .args(["-Xcompiler", "-fPIC", "-dc", "-c"])
+                .args(&compiler_flags)
+                .args(["-dc", "-c"])
                 .arg(src)
                 .arg("-o")
                 .arg(&*obj.to_string_lossy());
@@ -134,7 +146,8 @@ impl Build {
         let dev_link_obj = output_path().join("dev_link.o");
         let mut cmd = Command::new("nvcc");
         cmd.args(&include_args)
-            .args(["-Xcompiler", "-fPIC", "-dlink"])
+            .args(&compiler_flags)
+            .arg("-dlink")
             .args(&objects)
             .arg("-o")
             .arg(&*dev_link_obj.to_string_lossy());
@@ -229,6 +242,16 @@ impl Build {
         for dir in dirs {
             self.include(dir);
         }
+        self
+    }
+
+    pub fn warnings(&mut self, enable: bool) -> &mut Self {
+        self.warnings = enable;
+        self
+    }
+
+    pub fn warnings_as_errors(&mut self, enable: bool) -> &mut Self {
+        self.warnings_as_errors = enable;
         self
     }
 }
