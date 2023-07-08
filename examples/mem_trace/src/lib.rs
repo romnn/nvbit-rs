@@ -26,20 +26,17 @@ fn app_prefix() -> String {
     if let Some(executable) = args.get_mut(0) {
         *executable = PathBuf::from(&*executable)
             .file_name()
-            .and_then(ffi::OsStr::to_str)
             .unwrap()
+            .to_string_lossy()
             .to_string();
+        // .and_then(ffi::OsStr::to_str)
+        // .to_string();
     }
     args.join("-")
 }
 
 fn traces_dir() -> PathBuf {
-    let example_dir = PathBuf::from(file!())
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .to_path_buf();
+    let example_dir = PathBuf::from(file!()).join("../../");
     let traces_dir =
         std::env::var("TRACES_DIR").map_or_else(|_| example_dir.join("traces"), PathBuf::from);
     // make sure trace dir exists

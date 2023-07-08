@@ -1,8 +1,7 @@
-#![allow(clippy::missing_panics_doc)]
-#![allow(clippy::missing_safety_doc)]
+#![allow(clippy::missing_panics_doc, clippy::missing_safety_doc)]
 
-use lazy_static::lazy_static;
 use nvbit_rs::model;
+use once_cell::sync::Lazy;
 use std::collections::{HashMap, HashSet};
 use std::ffi;
 use std::sync::{Arc, Mutex, RwLock};
@@ -22,12 +21,7 @@ impl Args {
         instr.add_call_arg_const_val32(self.opcode_id.try_into().unwrap_or_default());
         // memory reference 64 bit address
         instr.add_call_arg_mref_addr64(self.mref_idx.try_into().unwrap_or_default());
-        // instr.add_call_arg_mref_addr64(self.mref_idx.try_into().unwrap_or_default());
     }
-}
-
-extern "C" {
-    pub fn noop();
 }
 
 struct Instrumentor<'c> {
@@ -54,11 +48,9 @@ impl Instrumentor<'static> {
     }
 }
 
-type Contexts = RwLock<HashMap<nvbit_rs::ContextHandle<'static>, Arc<Instrumentor<'static>>>>;
+type Contexts = HashMap<nvbit_rs::ContextHandle<'static>, Arc<Instrumentor<'static>>>;
 
-lazy_static! {
-    static ref CONTEXTS: Contexts = RwLock::new(HashMap::new());
-}
+static mut CONTEXTS: Lazy<Contexts> = Lazy::new(HashMap::new);
 
 impl<'c> Instrumentor<'c> {
     fn at_cuda_event(
@@ -172,36 +164,29 @@ pub unsafe extern "C" fn nvbit_at_cuda_event(
     let is_exit = is_exit != 0;
     println!("nvbit_at_cuda_event: {event_name} (is_exit = {is_exit})");
 
-    let lock = CONTEXTS.read().unwrap();
-    let Some(instrumentor) = lock.get(&ctx.handle()) else {
-        return;
-    };
-    instrumentor.at_cuda_event(is_exit, cbid, &event_name, params, pstatus);
+    if let Some(trace_ctx) = unsafe { CONTEXTS.get(&ctx.handle()) } {
+        trace_ctx.at_cuda_event(is_exit, cbid, &event_name, params, pstatus);
+    }
 }
 
 #[no_mangle]
 #[inline(never)]
 pub extern "C" fn nvbit_at_ctx_init(ctx: nvbit_rs::Context<'static>) {
     println!("nvbit_at_ctx_init");
-    CONTEXTS
-        .write()
-        .unwrap()
-        .entry(ctx.handle())
-        .or_insert_with(|| Instrumentor::new(ctx));
+    unsafe {
+        CONTEXTS
+            .entry(ctx.handle())
+            .or_insert_with(|| Instrumentor::new(ctx));
+    }
 }
 
 #[no_mangle]
 #[inline(never)]
 pub extern "C" fn nvbit_at_ctx_term(ctx: nvbit_rs::Context<'static>) {
     println!("nvbit_at_ctx_term");
-    let lock = CONTEXTS.read().unwrap();
-    let Some(instrumentor) = lock.get(&ctx.handle()) else {
+    let Some(trace_ctx) = (unsafe { CONTEXTS.get(&ctx.handle()) }) else {
         return;
     };
 
-    unsafe { noop() };
-    println!(
-        "done after {:?}",
-        Instant::now().duration_since(instrumentor.start)
-    );
+    println!("done after {:?}", trace_ctx.start.elapsed());
 }

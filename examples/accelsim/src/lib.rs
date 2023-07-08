@@ -1,11 +1,9 @@
-#![allow(clippy::missing_panics_doc)]
-#![allow(clippy::missing_safety_doc)]
-#![allow(clippy::too_many_lines)]
+#![allow(clippy::missing_panics_doc, clippy::missing_safety_doc)]
 
 mod instrument_inst;
 
-use lazy_static::lazy_static;
 use nvbit_rs::{model, DeviceChannel, HostChannel};
+use once_cell::sync::Lazy;
 use rustacuda::memory::UnifiedBox;
 use std::collections::{HashMap, HashSet};
 use std::ffi;
@@ -27,12 +25,7 @@ mod common {
 use common::inst_trace_t;
 
 fn traces_dir() -> PathBuf {
-    let example_dir = PathBuf::from(file!())
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .to_path_buf();
+    let example_dir = PathBuf::from(file!()).join("../../");
     let traces_dir =
         std::env::var("TRACES_DIR").map_or_else(|_| example_dir.join("traces"), PathBuf::from);
     // make sure trace dir exists
@@ -66,10 +59,14 @@ struct Instrumentor<'c> {
     start: Instant,
 }
 
+unsafe impl<'c> Send for Instrumentor<'c> {}
+unsafe impl<'c> Sync for Instrumentor<'c> {}
+
 impl Instrumentor<'static> {
     fn new(ctx: nvbit_rs::Context<'static>) -> Arc<Self> {
         let mut dev_channel = nvbit_rs::DeviceChannel::new();
         let host_channel = HostChannel::new(42, CHANNEL_SIZE, &mut dev_channel).unwrap();
+
         let total_dyn_instr_counter = UnifiedBox::new(0u64).unwrap();
         let reported_dyn_instr_counter = UnifiedBox::new(0u64).unwrap();
         let stop_report = UnifiedBox::new(false).unwrap();
@@ -148,14 +145,9 @@ impl Instrumentor<'static> {
     }
 }
 
-unsafe impl<'c> Send for Instrumentor<'c> {}
-unsafe impl<'c> Sync for Instrumentor<'c> {}
+type Contexts = HashMap<nvbit_rs::ContextHandle<'static>, Arc<Instrumentor<'static>>>;
 
-type Contexts = RwLock<HashMap<nvbit_rs::ContextHandle<'static>, Arc<Instrumentor<'static>>>>;
-
-lazy_static! {
-    static ref CONTEXTS: Contexts = RwLock::new(HashMap::new());
-}
+static mut CONTEXTS: Lazy<Contexts> = Lazy::new(HashMap::new);
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct KernelMetadata<'a> {
@@ -345,12 +337,14 @@ pub unsafe extern "C" fn nvbit_at_cuda_event(
 ) {
     let is_exit = is_exit != 0;
     println!("nvbit_at_cuda_event: {event_name} (is_exit = {is_exit})");
-    if let Some(instrumentor) = CONTEXTS.read().unwrap().get(&ctx.handle()) {
-        instrumentor.at_cuda_event(is_exit, cbid, &event_name, params, pstatus);
+
+    if let Some(trace_ctx) = unsafe { CONTEXTS.get(&ctx.handle()) } {
+        trace_ctx.at_cuda_event(is_exit, cbid, &event_name, params, pstatus);
     }
 }
 
 impl<'c> Instrumentor<'c> {
+    #[allow(clippy::too_many_lines)]
     fn at_cuda_event(
         &self,
         is_exit: bool,
@@ -525,11 +519,11 @@ impl<'c> Instrumentor<'c> {
 #[inline(never)]
 pub extern "C" fn nvbit_at_ctx_init(ctx: nvbit_rs::Context<'static>) {
     println!("nvbit_at_ctx_init");
-    CONTEXTS
-        .write()
-        .unwrap()
-        .entry(ctx.handle())
-        .or_insert_with(|| Instrumentor::new(ctx));
+    unsafe {
+        CONTEXTS
+            .entry(ctx.handle())
+            .or_insert_with(|| Instrumentor::new(ctx));
+    }
 }
 
 /// NVBIT callback when CUDA context is terminated.
@@ -537,36 +531,26 @@ pub extern "C" fn nvbit_at_ctx_init(ctx: nvbit_rs::Context<'static>) {
 #[inline(never)]
 pub extern "C" fn nvbit_at_ctx_term(ctx: nvbit_rs::Context<'static>) {
     println!("nvbit_at_ctx_term");
-    let lock = CONTEXTS.read().unwrap();
-    let Some(instrumentor) = lock.get(&ctx.handle()) else {
+    let Some(trace_ctx) = (unsafe { CONTEXTS.get(&ctx.handle()) }) else {
         return;
     };
 
     // stop the host channel
-    instrumentor
+    trace_ctx
         .host_channel
         .lock()
         .unwrap()
         .stop()
         .expect("stop host channel");
 
+    dbg!(**trace_ctx.stop_report.lock().unwrap());
+    dbg!(**trace_ctx.total_dyn_instr_counter.lock().unwrap());
+    dbg!(**trace_ctx.reported_dyn_instr_counter.lock().unwrap());
+
     // finish receiving packets
-    if let Some(recv_thread) = instrumentor.recv_thread.lock().unwrap().take() {
+    if let Some(recv_thread) = trace_ctx.recv_thread.lock().unwrap().take() {
         recv_thread.join().expect("join receiver thread");
     }
 
-    instrumentor.at_ctx_term();
-
-    println!(
-        "done after {:?}",
-        Instant::now().duration_since(instrumentor.start)
-    );
-}
-
-impl<'c> Instrumentor<'c> {
-    fn at_ctx_term(&self) {
-        dbg!(**self.stop_report.lock().unwrap());
-        dbg!(**self.total_dyn_instr_counter.lock().unwrap());
-        dbg!(**self.reported_dyn_instr_counter.lock().unwrap());
-    }
+    println!("done after {:?}", trace_ctx.start.elapsed());
 }
