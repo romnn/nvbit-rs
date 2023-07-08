@@ -6,13 +6,13 @@
 #include "common.h"
 
 __global__ __noinline__ void flush_channel_kernel(void *channel_dev) {
-  ChannelDev* channel = (ChannelDev*)channel_dev;
+  ChannelDev *channel = (ChannelDev *)channel_dev;
   printf("flush_channel\n");
   // push memory access with negative cta id to communicate
   // the kernel is completed
-  inst_trace_t ma;
-  ma.cta_id_x = -1;
-  channel->push(&ma, sizeof(inst_trace_t));
+  inst_trace_t t;
+  t.cta_id_x = -1;
+  channel->push(&t, sizeof(inst_trace_t));
 
   // flush channel
   channel->flush();

@@ -3,4 +3,5 @@ Cargo.lock
 /target
 /buildcache
 /examples/**/*.so
+/examples/*/traces/
 cuda.run

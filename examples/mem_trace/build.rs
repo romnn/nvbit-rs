@@ -55,6 +55,8 @@ fn main() {
         .include(nvbit_build::manifest_path().join("instrumentation"))
         .instrumentation_source("instrumentation/instrument_inst.cu")
         .source("instrumentation/tool.cu")
+        .warnings(true)
+        .warnings_as_errors(true)
         .compile(lib)
         .unwrap();
 }

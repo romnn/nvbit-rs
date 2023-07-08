@@ -1,8 +1,7 @@
-#![allow(clippy::missing_panics_doc)]
-#![allow(clippy::missing_safety_doc)]
+#![allow(clippy::missing_panics_doc, clippy::missing_safety_doc)]
 
-use lazy_static::lazy_static;
 use nvbit_rs::{model, DeviceChannel, HostChannel};
+use once_cell::sync::Lazy;
 use std::collections::{HashMap, HashSet};
 use std::ffi;
 use std::path::PathBuf;
@@ -233,11 +232,9 @@ impl Instrumentor<'static> {
     }
 }
 
-type Contexts = RwLock<HashMap<nvbit_rs::ContextHandle<'static>, Arc<Instrumentor<'static>>>>;
+type Contexts = HashMap<nvbit_rs::ContextHandle<'static>, Arc<Instrumentor<'static>>>;
 
-lazy_static! {
-    static ref CONTEXTS: Contexts = RwLock::new(HashMap::new());
-}
+static mut CONTEXTS: Lazy<Contexts> = Lazy::new(HashMap::new);
 
 impl<'c> Instrumentor<'c> {
     fn at_cuda_event(
@@ -443,7 +440,7 @@ pub extern "C" fn nvbit_at_init() {
 
 #[no_mangle]
 #[inline(never)]
-pub unsafe extern "C" fn nvbit_at_cuda_event(
+pub extern "C" fn nvbit_at_cuda_event(
     ctx: nvbit_rs::Context<'static>,
     is_exit: ffi::c_int,
     cbid: nvbit_sys::nvbit_api_cuda_t,
@@ -454,46 +451,42 @@ pub unsafe extern "C" fn nvbit_at_cuda_event(
     let is_exit = is_exit != 0;
     println!("nvbit_at_cuda_event: {event_name} (is_exit = {is_exit})");
 
-    let lock = CONTEXTS.read().unwrap();
-    let Some(instrumentor) = lock.get(&ctx.handle()) else {
-        return;
+    if let Some(trace_ctx) = unsafe { CONTEXTS.get(&ctx.handle()) } {
+        trace_ctx.at_cuda_event(is_exit, cbid, &event_name, params, pstatus);
     };
-    instrumentor.at_cuda_event(is_exit, cbid, &event_name, params, pstatus);
 }
 
 #[no_mangle]
 #[inline(never)]
 pub extern "C" fn nvbit_at_ctx_init(ctx: nvbit_rs::Context<'static>) {
     println!("nvbit_at_ctx_init");
-    CONTEXTS
-        .write()
-        .unwrap()
-        .entry(ctx.handle())
-        .or_insert_with(|| Instrumentor::new(ctx));
+    unsafe {
+        CONTEXTS
+            .entry(ctx.handle())
+            .or_insert_with(|| Instrumentor::new(ctx));
+    }
 }
 
 #[no_mangle]
 #[inline(never)]
 pub extern "C" fn nvbit_at_ctx_term(ctx: nvbit_rs::Context<'static>) {
     println!("nvbit_at_ctx_term");
-    let lock = CONTEXTS.read().unwrap();
-    let Some(instrumentor) = lock.get(&ctx.handle()) else {
+    let Some(trace_ctx) = (unsafe { CONTEXTS.get(&ctx.handle()) }) else {
         return;
     };
 
-    *instrumentor.skip_flag.lock().unwrap() = true;
+    *trace_ctx.skip_flag.lock().unwrap() = true;
     unsafe {
         // flush channel
-        let mut dev_channel = instrumentor.dev_channel.lock().unwrap();
+        let mut dev_channel = trace_ctx.dev_channel.lock().unwrap();
         common::flush_channel(dev_channel.as_mut_ptr().cast());
 
         // make sure flush of channel is complete
         nvbit_sys::cuCtxSynchronize();
     };
-    *instrumentor.skip_flag.lock().unwrap() = false;
 
     // stop the host channel
-    instrumentor
+    trace_ctx
         .host_channel
         .lock()
         .unwrap()
@@ -501,12 +494,9 @@ pub extern "C" fn nvbit_at_ctx_term(ctx: nvbit_rs::Context<'static>) {
         .expect("stop host channel");
 
     // finish receiving packets
-    if let Some(recv_thread) = instrumentor.recv_thread.lock().unwrap().take() {
+    if let Some(recv_thread) = trace_ctx.recv_thread.lock().unwrap().take() {
         recv_thread.join().expect("join receiver thread");
     }
 
-    println!(
-        "done after {:?}",
-        Instant::now().duration_since(instrumentor.start)
-    );
+    println!("done after {:?}", trace_ctx.start.elapsed());
 }
