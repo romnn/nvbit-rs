@@ -82,11 +82,11 @@ fn generate_nvbit_bindings<P: AsRef<Path>>(includes: impl IntoIterator<Item = P>
         .write_to_file(&bindings_path)
         .expect("writing bindings failed");
 
-    // let debug_bindings_path = manifest_path().join("debug/nvbit_bindings.rs");
-    // create_dirs(&debug_bindings_path);
-    // bindings
-    //     .write_to_file(&debug_bindings_path)
-    //     .expect("writing bindings failed");
+    let debug_bindings_path = manifest_path().join("debug/nvbit_bindings.rs");
+    create_dirs(&debug_bindings_path);
+    bindings
+        .write_to_file(&debug_bindings_path)
+        .expect("writing bindings failed");
 }
 
 fn decompress_tar_bz2(src: impl AsRef<Path>, dest: impl AsRef<Path>) {

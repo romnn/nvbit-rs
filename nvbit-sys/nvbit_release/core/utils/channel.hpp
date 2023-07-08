@@ -39,7 +39,7 @@
 /* #define USE_ASYNC_STREAM */
 
 class ChannelDev {
-private:
+ private:
   int id;
   volatile int *doorbell;
 
@@ -50,7 +50,7 @@ private:
   uint8_t *volatile buff_write_head_ptr;
   uint8_t *volatile buff_write_tail_ptr;
 
-public:
+ public:
   ChannelDev() {}
 
   int get_id() { return this->id; }
@@ -58,7 +58,7 @@ public:
   __device__ __forceinline__ int dev_get_id() { return this->id; }
 
   __device__ __forceinline__ void push(void *packet, uint32_t nbytes) {
-    printf("\n\npushed %u bytes into channel\n\n", nbytes);
+    // printf("\n\npushed %u bytes into channel\n\n", nbytes);
     assert(nbytes != 0);
 
     uint8_t *curr_ptr = NULL;
@@ -95,7 +95,7 @@ public:
 
   __device__ __forceinline__ void flush() {
     uint32_t nbytes = (uint32_t)(buff_write_tail_ptr - buff);
-    printf("FLUSH CHANNEL#%d: buffer bytes %d\n", id, nbytes);
+    // printf("FLUSH CHANNEL#%d: buffer bytes %d\n", id, nbytes);
     if (nbytes == 0) {
       return;
     }
@@ -116,13 +116,13 @@ public:
     __threadfence();
     buff_write_head_ptr = buff;
 
-    printf("FLUSH CHANNEL#%d: DONE\n", id);
+    // printf("FLUSH CHANNEL#%d: DONE\n", id);
   }
 
-private:
+ private:
   /* called by the ChannelHost init */
   void init(int id, int *h_doorbell, int buff_size) {
-    printf("\n\n\ninitialized device channel of size %d\n\n\n", buff_size);
+    // printf("\n\n\ninitialized device channel of size %d\n\n\n", buff_size);
     CUDA_SAFECALL(
         cudaHostGetDevicePointer((void **)&doorbell, (void *)h_doorbell, 0));
 
@@ -142,7 +142,7 @@ private:
 };
 
 class ChannelHost {
-private:
+ private:
   volatile int *doorbell;
 
   cudaStream_t stream;
@@ -156,16 +156,16 @@ private:
   pthread_t thread;
   volatile bool thread_started;
 
-public:
+ public:
   int id;
   int buff_size;
 
-public:
+ public:
   ChannelHost() {}
 
   void init(int id, int buff_size, ChannelDev *ch_dev,
             void *(*thread_fun)(void *), void *args = NULL) {
-    printf("\n\n\ninitialized host channel of size %d\n\n\n", buff_size);
+    // printf("\n\n\ninitialized host channel of size %d\n\n\n", buff_size);
     this->buff_size = buff_size;
     this->id = id;
     /* get device properties */
@@ -240,8 +240,9 @@ public:
     }
     assert(nbytes <= this->buff_size);
 #ifdef USE_ASYNC_STREAM
-    printf("cudaMemcpyAsync %u bytes from dev_buff_read_head (size %u) to host\n",
-           nbytes, this->buff_size);
+    // printf(
+    //     "cudaMemcpyAsync %u bytes from dev_buff_read_head (size %u) to
+    //     host\n", nbytes, this->buff_size);
     CUDA_SAFECALL(cudaMemcpyAsync(buff, dev_buff_read_head, nbytes,
                                   cudaMemcpyDeviceToHost, stream));
     CUDA_SAFECALL(cudaStreamSynchronize(stream));
@@ -257,7 +258,7 @@ public:
     }
 
     *doorbell = bytes_left;
-    printf("HOST RECEIVED nbytes %d - bytes left %d\n", nbytes, bytes_left);
+    // printf("HOST RECEIVED nbytes %d - bytes left %d\n", nbytes, bytes_left);
     return nbytes;
   }
 

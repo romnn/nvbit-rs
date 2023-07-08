@@ -7,6 +7,7 @@ nvbit_release/test-apps/vectoradd/vectoradd
 # ignore compilation artifacts
 nvbit_release/**/*.gdb_history
 nvbit_release/**/*.a
+nvbit_release/**/*.o
 nvbit_release/**/*.*.gch
 nvbit_release/**/*.so
 nvbit_release/**/log*

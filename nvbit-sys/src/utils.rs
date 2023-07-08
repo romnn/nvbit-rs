@@ -27,7 +27,7 @@ mod ffi {
         /// The channel can be accessed from the host only.
         ///
         /// # Safety
-        /// The user must ensure that `channel_dev` points to a valid 
+        /// The user must ensure that `channel_dev` points to a valid
         /// `ChannelDev` instance in host or managed memory.
         #[must_use]
         unsafe fn new_host_channel(
