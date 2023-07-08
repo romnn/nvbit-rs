@@ -6,21 +6,21 @@ use std::sync::{atomic, mpsc, Arc, Mutex};
 ///
 /// This channel can be accessed by the host and device.
 #[derive()]
-pub struct DeviceChannel<T> {
+pub struct Device<T> {
     inner: cxx::UniquePtr<ManagedChannelDev>,
     packet: PhantomData<T>,
 }
 
-unsafe impl<T> Send for DeviceChannel<T> {}
+unsafe impl<T> Send for Device<T> {}
 
-impl<T> Default for DeviceChannel<T> {
+impl<T> Default for Device<T> {
     #[must_use]
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T> DeviceChannel<T> {
+impl<T> Device<T> {
     /// Creates a new managed device channel.
     #[must_use]
     pub fn new() -> Self {
@@ -31,7 +31,7 @@ impl<T> DeviceChannel<T> {
         }
     }
 
-    /// Converts a `DeviceChannel<T>` to a raw pointer.
+    /// Converts a `Device<T>` to a raw pointer.
     ///
     /// # Panics
     /// Panics if the owned channel [`cxx::UniquePtr<nvbit_sys::ManagedChannelDev>`]
@@ -41,7 +41,7 @@ impl<T> DeviceChannel<T> {
         self.inner.as_ref().unwrap() as *const _
     }
 
-    /// Converts a `DeviceChannel<T>` to a raw pointer.
+    /// Converts a `Device<T>` to a raw pointer.
     ///
     /// # Panics
     /// Panics if the owned channel [`cxx::UniquePtr<nvbit_sys::ManagedChannelDev>`]
@@ -53,13 +53,13 @@ impl<T> DeviceChannel<T> {
     }
 }
 
-struct HostChannelInner<T> {
+struct HostInner<T> {
     channel: cxx::UniquePtr<ChannelHost>,
     buffer: super::buffer::Buffer,
     packet: PhantomData<T>,
 }
 
-impl<T> HostChannelInner<T>
+impl<T> HostInner<T>
 where
     T: Send + 'static,
 {
@@ -88,7 +88,7 @@ where
 
 /// Errors that can occur when using an NVBIT managed channel.
 #[derive(thiserror::Error, Debug)]
-pub enum HostChannelError {
+pub enum HostError {
     #[error(transparent)]
     Buffer(#[from] super::buffer::Error),
 }
@@ -97,16 +97,16 @@ pub enum HostChannelError {
 ///
 /// This channel can be accessed only by the host.
 #[derive()]
-pub struct HostChannel<T>
+pub struct Host<T>
 where
     T: Send + 'static,
 {
-    inner: Arc<Mutex<HostChannelInner<T>>>,
+    inner: Arc<Mutex<HostInner<T>>>,
     receiver_thread: Option<std::thread::JoinHandle<()>>,
     shutdown: Arc<atomic::AtomicBool>,
 }
 
-impl<T> HostChannel<T>
+impl<T> Host<T>
 where
     T: Send + 'static,
 {
@@ -114,11 +114,7 @@ where
     ///
     /// # Errors
     /// Returns an error if a buffer of size `buffer_size` cannot be allocated.
-    pub fn new(
-        id: i32,
-        buffer_size: u32,
-        dev_channel: &mut DeviceChannel<T>,
-    ) -> Result<Self, HostChannelError> {
+    pub fn new(id: i32, buffer_size: u32, dev_channel: &mut Device<T>) -> Result<Self, HostError> {
         let channel = unsafe {
             nvbit_sys::utils::new_host_channel(
                 id,
@@ -127,7 +123,7 @@ where
             )
         };
         let buffer = super::buffer::Buffer::new(buffer_size as usize)?;
-        let inner = HostChannelInner {
+        let inner = HostInner {
             channel,
             buffer,
             packet: PhantomData,
@@ -183,7 +179,7 @@ where
     }
 }
 
-impl<T> Drop for HostChannel<T>
+impl<T> Drop for Host<T>
 where
     T: Send + 'static,
 {
