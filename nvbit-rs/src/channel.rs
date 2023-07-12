@@ -168,7 +168,6 @@ where
     pub fn stop(&mut self) -> std::thread::Result<()> {
         match self.receiver_thread.take() {
             Some(thread) => {
-                println!("stopping receiver thread");
                 self.shutdown.store(true, atomic::Ordering::Relaxed);
 
                 // wait for the receiver thread to complete
