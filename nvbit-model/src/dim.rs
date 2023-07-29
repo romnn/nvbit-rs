@@ -9,12 +9,22 @@ pub struct Dim {
 }
 
 impl Dim {
+    pub const ZERO: Self = Self { x: 0, y: 0, z: 0 };
+
+    #[must_use]
+    #[inline]
+    pub fn new(x: u32, y: u32, z: u32) -> Self {
+        Self { x, y, z }
+    }
+
     #[must_use]
     #[inline]
     pub fn size(&self) -> u64 {
         u64::from(self.x) * u64::from(self.y) * u64::from(self.z)
     }
 
+    #[must_use]
+    #[inline]
     fn as_tuple(&self) -> (&u32, &u32, &u32) {
         (&self.x, &self.y, &self.z)
     }
@@ -181,6 +191,12 @@ impl IntoIterator for Dim {
 #[cfg(test)]
 mod tests {
     use super::{Dim, Point};
+
+    #[test]
+    fn test_zero_constant() {
+        let dim: Dim = Dim::ZERO;
+        assert_eq!(dim.size(), 0);
+    }
 
     #[test]
     fn test_iter_3_1_1() {
