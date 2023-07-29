@@ -36,3 +36,4 @@ denylist = ["default"]
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
+pretty_assertions = "1"

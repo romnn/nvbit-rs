@@ -74,15 +74,27 @@ impl PartialEq<Point> for Dim {
     }
 }
 
-impl PartialOrd for Dim {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.as_tuple().partial_cmp(&other.as_tuple())
-    }
-}
-
 impl Ord for Dim {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.as_tuple().cmp(&other.as_tuple())
+    }
+}
+
+impl PartialOrd for Dim {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Point {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_tuple().cmp(&other.as_tuple())
+    }
+}
+
+impl PartialOrd for Point {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -191,70 +203,106 @@ impl IntoIterator for Dim {
 #[cfg(test)]
 mod tests {
     use super::{Dim, Point};
+    use pretty_assertions as diff;
 
     #[test]
     fn test_zero_constant() {
         let dim: Dim = Dim::ZERO;
-        assert_eq!(dim.size(), 0);
+        diff::assert_eq!(dim.size(), 0);
     }
 
-    #[test]
-    fn test_iter_3_1_1() {
-        let dim: Dim = Dim::from((3, 1, 1));
-        assert_eq!(
-            dim.into_iter().map(Point::into_tuple).collect::<Vec<_>>(),
-            vec![(0, 0, 0), (1, 0, 0), (2, 0, 0)]
-        );
+    mod sort {
+        use super::{diff, Dim, Point};
+
+        #[test]
+        fn test_sort_3_1_1() {
+            let dim: Dim = Dim::from((3, 1, 1));
+            diff::assert_eq!(
+                dim.into_iter().map(Point::into_tuple).collect::<Vec<_>>(),
+                vec![(0, 0, 0), (1, 0, 0), (2, 0, 0)]
+            );
+        }
+
+        #[test]
+        fn test_sort_2_2_2() {
+            let dim: Dim = Dim::from((2, 2, 2));
+            diff::assert_eq!(
+                dim.into_iter().map(Point::into_tuple).collect::<Vec<_>>(),
+                vec![
+                    (0, 0, 0),
+                    (0, 0, 1),
+                    (0, 1, 0),
+                    (0, 1, 1),
+                    (1, 0, 0),
+                    (1, 0, 1),
+                    (1, 1, 0),
+                    (1, 1, 1)
+                ]
+            );
+        }
     }
 
-    #[test]
-    fn test_iter_3_3_1() {
-        let dim: Dim = Dim::from((3, 3, 1));
-        let dim_iter = dim.into_iter();
-        assert_eq!(dim_iter.size(), 9);
-        assert_eq!(
-            dim_iter
-                .map(|d| ((d.x, d.y, d.z), d.id()))
-                .collect::<Vec<_>>(),
-            vec![
-                ((0, 0, 0), 0),
-                ((0, 1, 0), 1),
-                ((0, 2, 0), 2),
-                ((1, 0, 0), 3),
-                ((1, 1, 0), 4),
-                ((1, 2, 0), 5),
-                ((2, 0, 0), 6),
-                ((2, 1, 0), 7),
-                ((2, 2, 0), 8)
-            ]
-        );
-    }
+    mod iter {
+        use super::{diff, Dim, Point};
 
-    #[test]
-    fn test_iter_1_3_1() {
-        let dim: Dim = Dim::from((1, 3, 1));
-        assert_eq!(
-            dim.into_iter().map(Point::into_tuple).collect::<Vec<_>>(),
-            vec![(0, 0, 0), (0, 1, 0), (0, 2, 0),]
-        );
-    }
+        #[test]
+        fn test_iter_3_1_1() {
+            let dim: Dim = Dim::from((3, 1, 1));
+            diff::assert_eq!(
+                dim.into_iter().map(Point::into_tuple).collect::<Vec<_>>(),
+                vec![(0, 0, 0), (1, 0, 0), (2, 0, 0)]
+            );
+        }
 
-    #[test]
-    fn test_iter_3_1_3() {
-        let dim: Dim = Dim::from((3, 1, 3));
-        assert_eq!(
-            dim.into_iter().map(Point::into_tuple).collect::<Vec<_>>(),
-            vec![
-                (0, 0, 0),
-                (0, 0, 1),
-                (0, 0, 2),
-                (1, 0, 0),
-                (1, 0, 1),
-                (1, 0, 2),
-                (2, 0, 0),
-                (2, 0, 1),
-                (2, 0, 2),
-            ]
-        );
+        #[test]
+        fn test_iter_3_3_1() {
+            let dim: Dim = Dim::from((3, 3, 1));
+            let dim_iter = dim.into_iter();
+            assert_eq!(dim_iter.size(), 9);
+            diff::assert_eq!(
+                dim_iter
+                    .map(|d| ((d.x, d.y, d.z), d.id()))
+                    .collect::<Vec<_>>(),
+                vec![
+                    ((0, 0, 0), 0),
+                    ((0, 1, 0), 1),
+                    ((0, 2, 0), 2),
+                    ((1, 0, 0), 3),
+                    ((1, 1, 0), 4),
+                    ((1, 2, 0), 5),
+                    ((2, 0, 0), 6),
+                    ((2, 1, 0), 7),
+                    ((2, 2, 0), 8)
+                ]
+            );
+        }
+
+        #[test]
+        fn test_iter_1_3_1() {
+            let dim: Dim = Dim::from((1, 3, 1));
+            diff::assert_eq!(
+                dim.into_iter().map(Point::into_tuple).collect::<Vec<_>>(),
+                vec![(0, 0, 0), (0, 1, 0), (0, 2, 0),]
+            );
+        }
+
+        #[test]
+        fn test_iter_3_1_3() {
+            let dim: Dim = Dim::from((3, 1, 3));
+            diff::assert_eq!(
+                dim.into_iter().map(Point::into_tuple).collect::<Vec<_>>(),
+                vec![
+                    (0, 0, 0),
+                    (0, 0, 1),
+                    (0, 0, 2),
+                    (1, 0, 0),
+                    (1, 0, 1),
+                    (1, 0, 2),
+                    (2, 0, 0),
+                    (2, 0, 1),
+                    (2, 0, 2),
+                ]
+            );
+        }
     }
 }
