@@ -65,7 +65,6 @@ fn generate_nvbit_bindings<P: AsRef<Path>>(includes: impl IntoIterator<Item = P>
         .derive_default(true)
         .derive_hash(true)
         .derive_ord(true)
-        // .size_t_is_usize(true)
         .size_t_is_usize(false)
         .rustfmt_bindings(true)
         .default_enum_style(bindgen::EnumVariation::Rust {
@@ -82,11 +81,18 @@ fn generate_nvbit_bindings<P: AsRef<Path>>(includes: impl IntoIterator<Item = P>
         .write_to_file(&bindings_path)
         .expect("writing bindings failed");
 
-    let debug_bindings_path = manifest_path().join("debug/nvbit_bindings.rs");
-    create_dirs(&debug_bindings_path);
-    bindings
-        .write_to_file(&debug_bindings_path)
-        .expect("writing bindings failed");
+    if std::env::var("SAVE_BINDINGS")
+        .as_deref()
+        .unwrap_or("")
+        .to_lowercase()
+        == "yes"
+    {
+        let debug_bindings_path = manifest_path().join("debug/nvbit_bindings.rs");
+        create_dirs(&debug_bindings_path);
+        bindings
+            .write_to_file(&debug_bindings_path)
+            .expect("writing bindings failed");
+    }
 }
 
 fn decompress_tar_bz2(src: impl AsRef<Path>, dest: impl AsRef<Path>) {
@@ -118,7 +124,7 @@ fn download_nvbit(version: impl AsRef<str>, arch: impl AsRef<str>) -> PathBuf {
         std::fs::remove_file(&archive_path).ok();
         let mut nvbit_release_archive_file = File::create(&archive_path).expect("create file");
         reqwest::blocking::get(nvbit_release_archive_url)
-            .expect("get nvbit request")
+            .expect("get nvbit")
             .copy_to(&mut nvbit_release_archive_file)
             .expect("copy nvbit archive");
 
