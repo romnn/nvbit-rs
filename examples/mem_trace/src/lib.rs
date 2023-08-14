@@ -29,14 +29,12 @@ fn app_prefix() -> String {
             .unwrap()
             .to_string_lossy()
             .to_string();
-        // .and_then(ffi::OsStr::to_str)
-        // .to_string();
     }
     args.join("-")
 }
 
 fn traces_dir() -> PathBuf {
-    let example_dir = PathBuf::from(file!()).join("../../");
+    let example_dir = PathBuf::from(file!()).parent().unwrap().join("../../../");
     let traces_dir =
         std::env::var("TRACES_DIR").map_or_else(|_| example_dir.join("traces"), PathBuf::from);
     // make sure trace dir exists
@@ -50,8 +48,6 @@ struct MemAccessTraceEntry<'a> {
     pub grid_launch_id: u64,
     pub cta_id: model::Dim,
     pub warp_id: u32,
-    // pub instr_line: usize,
-    // pub instr_file_name: &'a str,
     pub instr_opcode: &'a str,
     pub instr_offset: u32,
     pub instr_idx: u32,
@@ -60,7 +56,7 @@ struct MemAccessTraceEntry<'a> {
     pub instr_is_load: bool,
     pub instr_is_store: bool,
     pub instr_is_extended: bool,
-    /// Accessed address per thread of a warp
+    /// Address per thread in warp
     pub addrs: [u64; 32],
 }
 
@@ -156,6 +152,7 @@ impl Instrumentor<'static> {
         let rx = self.host_channel.lock().unwrap().read();
 
         let trace_file_path = traces_dir().join(format!("{}-trace", &app_prefix()));
+        dbg!(&trace_file_path);
         let mut file = std::io::BufWriter::new(
             std::fs::OpenOptions::new()
                 .write(true)
@@ -267,37 +264,39 @@ impl<'c> Instrumentor<'c> {
                 ..
             }) => {
                 // make sure GPU is idle
-                unsafe { nvbit_sys::cuCtxSynchronize() };
+                // unsafe { nvbit_sys::cuCtxSynchronize() };
 
-                if !is_exit {
-                    self.instrument_function_if_needed(&mut func);
-
-                    let ctx = &mut self.ctx.lock().unwrap();
-                    let mut grid_launch_id = self.grid_launch_id.lock().unwrap();
-
-                    let nregs = func.num_registers().unwrap();
-                    let shmem_static_nbytes = func.shared_memory_bytes().unwrap();
-                    let func_name = func.name(ctx);
-                    let pc = func.addr();
-
-                    println!("MEMTRACE: CTX {:#06x} - LAUNCH", ctx.as_ptr() as u64);
-                    println!("\tKernel pc: {pc:#06x}");
-                    println!("\tKernel name: {func_name}");
-                    println!("\tGrid launch id: {grid_launch_id}");
-                    println!("\tGrid size: {grid}");
-                    println!("\tBlock size: {block}");
-                    println!("\tNum registers: {nregs}");
-                    println!(
-                        "\tShared memory bytes: {}",
-                        shmem_static_nbytes + shared_mem_bytes as usize
-                    );
-                    println!("\tCUDA stream id: {}", h_stream.as_ptr() as u64);
-
-                    *grid_launch_id += 1;
-
-                    // enable instrumented code to run
-                    func.enable_instrumented(ctx, true, true);
+                dbg!(func.as_mut_ptr());
+                if is_exit {
+                    return;
                 }
+                self.instrument_function_if_needed(&mut func);
+
+                let ctx = &mut self.ctx.lock().unwrap();
+                let mut grid_launch_id = self.grid_launch_id.lock().unwrap();
+
+                let nregs = func.num_registers().unwrap();
+                let shmem_static_nbytes = func.shared_memory_bytes().unwrap();
+                let func_name = func.name(ctx);
+                let pc = func.addr();
+
+                println!("MEMTRACE: CTX {:#06x} - LAUNCH", ctx.as_ptr() as u64);
+                println!("\tKernel pc: {pc:#06x}");
+                println!("\tKernel name: {func_name}");
+                println!("\tGrid launch id: {grid_launch_id}");
+                println!("\tGrid size: {grid}");
+                println!("\tBlock size: {block}");
+                println!("\tNum registers: {nregs}");
+                println!(
+                    "\tShared memory bytes: {}",
+                    shmem_static_nbytes + shared_mem_bytes as usize
+                );
+                println!("\tCUDA stream id: {}", h_stream.as_ptr() as u64);
+
+                *grid_launch_id += 1;
+
+                // enable instrumented code to run
+                func.enable_instrumented(ctx, true, true);
             }
             _ => {}
         }
@@ -455,8 +454,8 @@ pub extern "C" fn nvbit_at_cuda_event(
 
 #[no_mangle]
 #[inline(never)]
-pub extern "C" fn nvbit_at_ctx_init(ctx: nvbit_rs::Context<'static>) {
-    println!("nvbit_at_ctx_init");
+pub extern "C" fn nvbit_at_ctx_init(mut ctx: nvbit_rs::Context<'static>) {
+    println!("nvbit_at_ctx_init ({:?})", ctx.as_mut_ptr());
     unsafe {
         CONTEXTS
             .entry(ctx.handle())

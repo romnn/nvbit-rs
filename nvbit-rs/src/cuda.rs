@@ -87,7 +87,7 @@ impl From<&ContextHandle<'_>> for model::Context {
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct Context<'a> {
     inner: nvbit_sys::CUcontext,
-    module: PhantomData<&'a ()>,
+    module: PhantomData<&'a nvbit_sys::CUcontext>,
 }
 
 unsafe impl<'a> Send for Context<'a> {}
@@ -123,7 +123,7 @@ impl<'a> Context<'a> {
     #[inline]
     #[must_use]
     pub fn as_mut_ptr(&mut self) -> *mut nvbit_sys::CUctx_st {
-        self.inner.cast()
+        self.inner
     }
 }
 
@@ -243,7 +243,7 @@ impl<'a> Function<'a> {
     #[inline]
     #[must_use]
     pub fn as_mut_ptr(&mut self) -> *mut nvbit_sys::CUfunc_st {
-        self.inner.cast()
+        self.inner
     }
 
     #[inline]
