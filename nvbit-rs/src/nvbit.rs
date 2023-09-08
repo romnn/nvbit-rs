@@ -83,11 +83,21 @@ pub fn get_cfg<'f>(ctx: &mut Context<'_>, func: &mut Function<'f>) -> CFG<'f> {
     CFG::default()
 }
 
-/// Get the function name from a `CUfunction`
+/// Get the mangled function name from a `CUfunction`.
 #[must_use]
-pub fn get_func_name<'f>(ctx: &mut Context<'_>, func: &mut Function<'f>) -> &'f str {
+pub fn get_func_name_mangled<'f>(ctx: &mut Context<'_>, func: &mut Function<'f>) -> &'f str {
+    let mangled = true;
     let func_name: *const ffi::c_char =
-        unsafe { bindings::nvbit_get_func_name(ctx.as_mut_ptr(), func.as_mut_ptr(), false) };
+        unsafe { bindings::nvbit_get_func_name(ctx.as_mut_ptr(), func.as_mut_ptr(), mangled) };
+    unsafe { ffi::CStr::from_ptr(func_name).to_str().unwrap_or_default() }
+}
+
+/// Get the unmangled function name from a `CUfunction`.
+#[must_use]
+pub fn get_func_name_unmangled<'f>(ctx: &mut Context<'_>, func: &mut Function<'f>) -> &'f str {
+    let mangled = false;
+    let func_name: *const ffi::c_char =
+        unsafe { bindings::nvbit_get_func_name(ctx.as_mut_ptr(), func.as_mut_ptr(), mangled) };
     unsafe { ffi::CStr::from_ptr(func_name).to_str().unwrap_or_default() }
 }
 

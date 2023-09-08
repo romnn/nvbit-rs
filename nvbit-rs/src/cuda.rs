@@ -249,7 +249,19 @@ impl<'a> Function<'a> {
     #[inline]
     #[must_use]
     pub fn name<'c>(&mut self, ctx: &mut Context<'c>) -> &'a str {
-        super::get_func_name(ctx, self)
+        self.unmangled_name(ctx)
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn mangled_name<'c>(&mut self, ctx: &mut Context<'c>) -> &'a str {
+        super::get_func_name_mangled(ctx, self)
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn unmangled_name<'c>(&mut self, ctx: &mut Context<'c>) -> &'a str {
+        super::get_func_name_unmangled(ctx, self)
     }
 
     #[inline]
