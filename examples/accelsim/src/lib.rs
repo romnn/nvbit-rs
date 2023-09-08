@@ -363,11 +363,7 @@ impl<'c> Instrumentor<'c> {
         // }
 
         if self.active_from_start {
-            if self.dynamic_kernel_limit_start <= 1 {
-                *self.active_region.lock().unwrap() = true;
-            } else {
-                *self.active_region.lock().unwrap() = false;
-            }
+            *self.active_region.lock().unwrap() = self.dynamic_kernel_limit_start <= 1;
         }
 
         // kernelsFile = fopen(kernelslist_location.c_str(), "w");

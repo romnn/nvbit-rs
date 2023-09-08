@@ -49,6 +49,8 @@ nvbit-model = { path = "../nvbit-model" }
 
 [build-dependencies]
 reqwest = { version = "0", features = ["blocking"] }
+retry = "2"
+
 pkg-config = "0.3"
 cxx-build = "1"
 bindgen = "0.61"

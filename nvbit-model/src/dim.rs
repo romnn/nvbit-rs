@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// 3-dimensional coordinates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Dim {
     pub x: u32,
     pub y: u32,

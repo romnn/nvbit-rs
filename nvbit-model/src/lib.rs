@@ -4,23 +4,23 @@ pub use dim::*;
 use serde::{Deserialize, Serialize};
 
 /// A CUDA device.
-#[derive(PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Device(pub u64);
 
 /// A CUDA context.
-#[derive(PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Context(pub u64);
 
 /// A CUDA function.
-#[derive(PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Function(pub u64);
 
 /// A CUDA stream.
-#[derive(PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Stream(pub u64);
 
 /// CUDA function attribute.
-#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum FunctionAttribute {
     MaxThreadsPerBlock,
     SharedSizeBytes,
@@ -36,7 +36,7 @@ pub enum FunctionAttribute {
 }
 
 /// NVBIT Register modifiers.
-#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RegisterModifier {
     None = 0,
     X1 = 1,
@@ -48,7 +48,7 @@ pub enum RegisterModifier {
 }
 
 /// An instruction operand.
-#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum OperandKind {
     ImmutableUint64 {
         value: u64,
@@ -88,7 +88,7 @@ pub enum OperandKind {
 }
 
 /// Identifier of GPU memory space.
-#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum MemorySpace {
     None = 0,
     Local = 1,
@@ -102,7 +102,9 @@ pub enum MemorySpace {
 }
 
 /// An instruction operand predicate.
-#[derive(Default, PartialEq, Eq, Hash, Debug, Clone, Serialize, Deserialize)]
+#[derive(
+    Debug, Default, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
+)]
 pub struct Predicate {
     /// predicate number
     pub num: std::ffi::c_int,
@@ -113,14 +115,14 @@ pub struct Predicate {
 }
 
 /// Insertion point where the instrumentation for an instruction should be inserted
-#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum InsertionPoint {
     Before,
     After,
 }
 
 /// All possible CUDA error kinds
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum CudaErrorKind {
     Success,
     InvalidValue,

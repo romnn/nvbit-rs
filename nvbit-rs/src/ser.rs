@@ -5,7 +5,7 @@ pub trait AsPtr<T> {
 
 impl<T> AsPtr<T> for *mut T {
     fn as_ptr(&self) -> *const T {
-        *self as _
+        (*self).cast_const()
     }
 }
 

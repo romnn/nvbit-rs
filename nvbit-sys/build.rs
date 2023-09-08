@@ -123,10 +123,15 @@ fn download_nvbit(version: impl AsRef<str>, arch: impl AsRef<str>) -> PathBuf {
     if force || !nvbit_path.is_dir() {
         std::fs::remove_file(&archive_path).ok();
         let mut nvbit_release_archive_file = File::create(&archive_path).expect("create file");
-        reqwest::blocking::get(nvbit_release_archive_url)
-            .expect("get nvbit")
-            .copy_to(&mut nvbit_release_archive_file)
-            .expect("copy nvbit archive");
+        retry::retry(retry::delay::Exponential::from_millis(100).take(3), || {
+            match reqwest::blocking::get(nvbit_release_archive_url.clone()) {
+                Ok(mut response) => Ok(response
+                    .copy_to(&mut nvbit_release_archive_file)
+                    .expect("copy nvbit archive")),
+                Err(err) => Err(err),
+            }
+        })
+        .expect("get nvbit");
 
         std::fs::remove_file(&nvbit_path).ok();
         decompress_tar_bz2(&archive_path, &nvbit_path);

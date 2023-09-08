@@ -156,7 +156,7 @@ impl ffi::InstrShim {
     #[inline]
     #[must_use]
     pub fn as_ptr(&self) -> *const ffi::Instr {
-        self.ptr as *const _
+        self.ptr.cast_const()
     }
 
     #[inline]
@@ -176,7 +176,7 @@ impl ffi::CUfunctionShim {
     #[inline]
     #[must_use]
     pub fn as_ptr(&self) -> *const bindings::CUfunc_st {
-        self.ptr as *const _
+        self.ptr.cast_const()
     }
 
     #[inline]
@@ -196,7 +196,7 @@ impl ffi::CUcontextShim {
     #[inline]
     #[must_use]
     pub fn as_ptr(&self) -> *const bindings::CUctx_st {
-        self.ptr as *const _
+        self.ptr.cast_const()
     }
 
     #[inline]

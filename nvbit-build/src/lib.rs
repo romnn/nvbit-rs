@@ -1,6 +1,15 @@
 use std::path::PathBuf;
 use std::process::{Command, Output};
 
+/// Get the nvbit include dir.
+///
+/// **Note**: This function is intended to be used the build.rs context.
+///
+/// This can be useful when your crate uses nvbit and requires access to
+/// the nvbit header files.
+///
+/// # Panics
+/// When the `DEP_NVBIT_INCLUDE` environment variable is not set.
 #[inline]
 #[must_use]
 pub fn nvbit_include() -> PathBuf {
@@ -9,6 +18,12 @@ pub fn nvbit_include() -> PathBuf {
         .expect("canonicalize path")
 }
 
+/// Get the cargo output directory.
+///
+/// **Note**: This function is intended to be used the build.rs context.
+///
+/// # Panics
+/// When the `OUT_DIR` environment variable is not set.
 #[inline]
 #[must_use]
 pub fn output_path() -> PathBuf {
@@ -17,6 +32,12 @@ pub fn output_path() -> PathBuf {
         .expect("canonicalize path")
 }
 
+/// Get the cargo manifest directory.
+///
+/// **Note**: This function is intended to be used the build.rs context.
+///
+/// # Panics
+/// When the `CARGO_MANIFEST_DIR` environment variable is not set.
 #[inline]
 #[must_use]
 pub fn manifest_path() -> PathBuf {

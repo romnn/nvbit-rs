@@ -174,7 +174,7 @@ impl<'f> Instruction<'f> {
     #[inline]
     #[must_use]
     pub fn as_ptr(&self) -> *const nvbit_sys::nvbit::Instr {
-        self.inner as *const _
+        self.inner.cast_const()
     }
 
     #[inline]
