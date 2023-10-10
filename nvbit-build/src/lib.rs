@@ -61,6 +61,7 @@ pub struct Build {
     objects: Vec<PathBuf>,
     sources: Vec<PathBuf>,
     instrumentation_sources: Vec<PathBuf>,
+    compiler_flags: Vec<String>,
     host_compiler: Option<PathBuf>,
     nvcc_compiler: Option<PathBuf>,
     warnings: bool,
@@ -82,6 +83,7 @@ impl Build {
             objects: Vec::new(),
             sources: Vec::new(),
             instrumentation_sources: Vec::new(),
+            compiler_flags: Vec::new(),
             host_compiler: None,
             nvcc_compiler: None,
             warnings: false,
@@ -112,11 +114,13 @@ impl Build {
             cmd.args(include_args);
             cmd.args([
                 "-maxrregcount=24",
+                "-arch=sm_35",
                 "-Xptxas",
                 "-astoolspatch",
                 "--keep-device-functions",
             ])
             .args(compiler_flags)
+            .args(&self.compiler_flags)
             .arg("-c")
             .arg(src)
             .arg("-o")
@@ -154,6 +158,7 @@ impl Build {
             }
             cmd.args(include_args)
                 .args(compiler_flags)
+                .args(&self.compiler_flags)
                 .args(["-dc", "-c"])
                 .arg(src)
                 .arg("-o")
@@ -180,8 +185,7 @@ impl Build {
             .map(|d| format!("-I{}", &d.to_string_lossy()))
             .collect();
 
-        let mut compiler_flags = vec!["-Xcompiler", "-fPIC"];
-        // compiler_flags.extend(["-Xcompiler", "-Wl,--no-as-needed"]);
+        let mut compiler_flags = vec!["-arch=sm_35", "-Xcompiler", "-fPIC"];
         if self.warnings {
             compiler_flags.extend(["-Xcompiler", "-Wall"]);
         }
@@ -215,6 +219,7 @@ impl Build {
 
         cmd.args(&include_args)
             .args(&compiler_flags)
+            .args(&self.compiler_flags)
             .arg("-dlink")
             .args(&objects)
             .arg("-o")
@@ -305,6 +310,43 @@ impl Build {
     {
         for src in sources {
             self.source(src);
+        }
+        self
+    }
+
+    /// Add an arbitrary flag to the invocation of nvcc.
+    pub fn nvcc_flag<F: Into<String>>(&mut self, flag: F) -> &mut Build {
+        self.compiler_flags.push(flag.into());
+        self
+    }
+
+    /// Add an arbitrary flag to the invocation of the host compiler.
+    pub fn host_compiler_flag<F: Into<String>>(&mut self, flag: F) -> &mut Build {
+        self.compiler_flags
+            .extend(["-Xcompiler".to_string(), flag.into()]);
+        self
+    }
+
+    /// Add arbitrary flags to the invocation of nvcc.
+    pub fn nvcc_flags<I>(&mut self, flags: I) -> &mut Self
+    where
+        I: IntoIterator,
+        I::Item: Into<String>,
+    {
+        for flag in flags {
+            self.nvcc_flag(flag);
+        }
+        self
+    }
+
+    /// Add arbitrary flags to the invocation of the host compiler.
+    pub fn host_compiler_flags<I>(&mut self, flags: I) -> &mut Self
+    where
+        I: IntoIterator,
+        I::Item: Into<String>,
+    {
+        for flag in flags {
+            self.host_compiler_flag(flag);
         }
         self
     }
