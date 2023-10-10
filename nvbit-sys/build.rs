@@ -260,6 +260,7 @@ fn main() {
     // rerun if the CUDA library path changes
     println!("cargo:rerun-if-env-changed=CUDA_LIBRARY_PATH");
     println!("cargo:rerun-if-env-changed=CARGO_FEATURE_UTILS");
+    println!("cargo:rerun-if-env-changed=SAVE_BINDINGS");
 
     let utils = env::var("CARGO_FEATURE_UTILS").is_ok();
     if utils {

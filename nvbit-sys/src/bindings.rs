@@ -15,6 +15,7 @@ impl From<model::FunctionAttribute> for CUfunction_attribute_enum {
             FunctionAttribute::PTXVersion => Self::CU_FUNC_ATTRIBUTE_PTX_VERSION,
             FunctionAttribute::BinaryVersion => Self::CU_FUNC_ATTRIBUTE_BINARY_VERSION,
             FunctionAttribute::CacheModeCA => Self::CU_FUNC_ATTRIBUTE_CACHE_MODE_CA,
+
             FunctionAttribute::MaxDynamicSharedSizeBytes => {
                 Self::CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES
             }
