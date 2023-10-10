@@ -306,9 +306,7 @@ impl<'a> Function<'a> {
     /// # Errors
     /// Returns an error if the CUDA attribute can not be read.
     pub fn num_registers(&mut self) -> CudaResult<i32> {
-        let mut value = 0;
-        self.get_attribute(&mut value, model::FunctionAttribute::NumRegs)?;
-        Ok(value)
+        self.get_attribute(model::FunctionAttribute::NumRegs)
     }
 
     /// Returns the number of shared memory bytes for this function.
@@ -316,9 +314,7 @@ impl<'a> Function<'a> {
     /// # Errors
     /// Returns an error if the CUDA attribute can not be read.
     pub fn shared_memory_bytes(&mut self) -> CudaResult<usize> {
-        let mut value = 0;
-        self.get_attribute(&mut value, model::FunctionAttribute::SharedSizeBytes)?;
-        Ok(value)
+        self.get_attribute(model::FunctionAttribute::SharedSizeBytes)
     }
 
     /// Returns the binary version of this function.
@@ -326,9 +322,7 @@ impl<'a> Function<'a> {
     /// # Errors
     /// Returns an error if the CUDA attribute can not be read.
     pub fn binary_version(&mut self) -> CudaResult<i32> {
-        let mut value = 0;
-        self.get_attribute(&mut value, model::FunctionAttribute::BinaryVersion)?;
-        Ok(value)
+        self.get_attribute(model::FunctionAttribute::BinaryVersion)
     }
 
     /// Gets an attribute for this function.
@@ -337,16 +331,16 @@ impl<'a> Function<'a> {
     ///
     /// # Errors
     /// Returns an error if the CUDA attribute can not be read.
-    pub fn get_attribute<T>(
-        &mut self,
-        dest: &mut T,
-        attr: model::FunctionAttribute,
-    ) -> CudaResult<()> {
+    pub fn get_attribute<T>(&mut self, attr: model::FunctionAttribute) -> CudaResult<T> {
+        if std::mem::size_of::<T>() < std::mem::size_of::<i32>() {
+            return Err(nvbit_sys::model::CudaErrorKind::InvalidValue.into());
+        }
+        let mut dest = std::mem::MaybeUninit::<T>::uninit();
         let result = unsafe {
-            nvbit_sys::cuFuncGetAttribute((dest as *mut T).cast(), attr.into(), self.as_mut_ptr())
+            nvbit_sys::cuFuncGetAttribute(dest.as_mut_ptr().cast(), attr.into(), self.as_mut_ptr())
         };
         result.into_result()?;
-        Ok(())
+        Ok(unsafe { dest.assume_init() })
     }
 }
 

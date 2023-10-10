@@ -4,6 +4,8 @@ use super::{Context, Function, Instruction, CFG};
 use nvbit_sys::{bindings, nvbit};
 use std::ffi;
 
+const MB: u64 = 1024 * 1024;
+
 /// Shim that wraps a CUDA event name.
 #[repr(transparent)]
 #[derive(PartialEq, Eq, Hash, Debug)]
@@ -174,22 +176,40 @@ pub fn is_func_kernel(ctx: &mut Context<'_>, func: &mut Function<'_>) -> bool {
 // TODO
 // std::vector<int> nvbit_get_kernel_argument_sizes(CUfunction func);
 
-/// Returns shmem base address from `CUcontext`.
+/// Shared memory base address from `CUcontext` (inclusive).
 ///
-/// Shmem range is [`shmem_base_addr`, `shmem_base_addr`+16MB) and
-/// the base address is 16MB aligned.
+/// Shared memory address range is [`shmem_base_addr`, `shmem_base_addr`+16MB).
+/// The base address is 16MB aligned.
 #[must_use]
 pub fn shmem_base_addr(ctx: &mut Context<'_>) -> u64 {
     unsafe { bindings::nvbit_get_shmem_base_addr(ctx.as_mut_ptr()) }
 }
 
-/// Returns local memory base address from `CUcontext`.
+/// Shared memory address limit from `CUcontext` (exclusive).
 ///
-/// Local mem range is [`shmem_base_addr`, `shmem_base_addr`+16MB) and
-/// the base address is 16MB aligned.
+/// This is equal to `shmem_base_addr`+16MB.
+/// The address is 16MB aligned.
+#[must_use]
+pub fn shmem_addr_limit(ctx: &mut Context<'_>) -> u64 {
+    shmem_base_addr(ctx) + (16 * MB)
+}
+
+/// Local memory base address from `CUcontext` (inclusive).
+///
+/// Local memory address range is [`local_base_addr`, `local_base_addr`+16MB).
+/// The base address is 16MB aligned.
 #[must_use]
 pub fn local_mem_base_addr(ctx: &mut Context<'_>) -> u64 {
     unsafe { bindings::nvbit_get_local_mem_base_addr(ctx.as_mut_ptr()) }
+}
+
+/// Local memory address limit from `CUcontext` (exclusive).
+///
+/// This is equal to `local_base_addr`+16MB.
+/// The address is 16MB aligned.
+#[must_use]
+pub fn local_mme_addr_limit(ctx: &mut Context<'_>) -> u64 {
+    local_mem_base_addr(ctx) + (16 * MB)
 }
 
 /// Run instrumentation on original function.
