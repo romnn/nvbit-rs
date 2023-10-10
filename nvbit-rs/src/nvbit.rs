@@ -208,7 +208,7 @@ pub fn local_mem_base_addr(ctx: &mut Context<'_>) -> u64 {
 /// This is equal to `local_base_addr`+16MB.
 /// The address is 16MB aligned.
 #[must_use]
-pub fn local_mme_addr_limit(ctx: &mut Context<'_>) -> u64 {
+pub fn local_mem_addr_limit(ctx: &mut Context<'_>) -> u64 {
     local_mem_base_addr(ctx) + (16 * MB)
 }
 
